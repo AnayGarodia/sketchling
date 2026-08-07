@@ -38,7 +38,12 @@ export function mount(scene: SerializedScene, container: HTMLElement): MountResu
   return {
     svg,
     timeline: tl,
-    seekTo: (t: number) => tl.seek(t, false),
+    // Block body deliberately: tl.seek() returns the Timeline itself, and callers invoke
+    // this through Playwright's page.evaluate() — an implicit return would hand the whole
+    // GSAP timeline object graph back for CDP serialization, which never completes.
+    seekTo: (t: number) => {
+      tl.seek(t, false);
+    },
     totalDuration: () => tl.duration(),
   };
 }

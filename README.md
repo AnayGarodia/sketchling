@@ -53,10 +53,11 @@ Rendering a full screenshot after every edit is slow and expensive. sketchling c
 - **Tier 2 (occasional).** A full-resolution render, for a final look.
 
 ```
-sketchling render scene.ts --out preview.png          # full render, settled end state
-sketchling render scene.ts --out preview.png --at 0.6  # a specific point in the timeline
-sketchling render scene.ts --crop --out thumb.png      # cropped to content
-sketchling render scene.ts --serve                     # open it live in a real browser
+sketchling render scene.ts --out preview.png            # full render, settled end state
+sketchling render scene.ts --out preview.png --at 0.6    # a specific point in the timeline
+sketchling render scene.ts --crop --out thumb.png        # cropped to content
+sketchling render scene.ts --video out.mp4 --fps 24      # the whole timeline, as an MP4
+sketchling render scene.ts --serve                       # open it live in a real browser
 ```
 
 ## How it works
