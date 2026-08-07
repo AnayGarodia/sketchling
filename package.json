@@ -21,6 +21,14 @@
   "engines": {
     "node": ">=18"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AnayGarodia/sketchling.git"
+  },
+  "homepage": "https://github.com/AnayGarodia/sketchling#readme",
+  "bugs": {
+    "url": "https://github.com/AnayGarodia/sketchling/issues"
+  },
   "bin": {
     "sketchling": "./bin/sketchling.js"
   },
