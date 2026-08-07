@@ -1,0 +1,66 @@
+import type { AnimOp, NodeStyle, TimingOpts, Transform } from "./types.js";
+import { hashSeed } from "./geometry.js";
+
+let autoId = 0;
+
+export abstract class SketchNode {
+  readonly id: string;
+  abstract readonly type: "stroke" | "blob" | "group";
+  style: NodeStyle;
+  transform: Transform = { x: 0, y: 0, scale: 1, rotation: 0, opacity: 1 };
+  animations: AnimOp[] = [];
+  seed: number;
+
+  constructor(style: NodeStyle = {}, id?: string) {
+    this.id = id ?? `n${autoId++}`;
+    this.style = style;
+    this.seed = hashSeed(this.id);
+  }
+
+  /** Sets the starting state before any animation runs (e.g. opacity: 0, scale: 0.8). */
+  initial(t: Partial<Transform>): this {
+    Object.assign(this.transform, t);
+    return this;
+  }
+
+  withSeed(seed: number): this {
+    this.seed = seed;
+    return this;
+  }
+
+  /** Progressive stroke reveal — the line draws itself, like a hand sketching it. */
+  drawOn(opts: TimingOpts = {}): this {
+    this.animations.push({ kind: "drawOn", ...opts });
+    return this;
+  }
+
+  appear(opts: TimingOpts = {}): this {
+    this.animations.push({ kind: "appear", ...opts });
+    return this;
+  }
+
+  moveTo(x: number, y: number, opts: TimingOpts = {}): this {
+    this.animations.push({ kind: "moveTo", x, y, ...opts });
+    return this;
+  }
+
+  moveBy(dx: number, dy: number, opts: TimingOpts = {}): this {
+    this.animations.push({ kind: "moveBy", dx, dy, ...opts });
+    return this;
+  }
+
+  scaleTo(scale: number, opts: TimingOpts = {}): this {
+    this.animations.push({ kind: "scaleTo", scale, ...opts });
+    return this;
+  }
+
+  rotateTo(degrees: number, opts: TimingOpts = {}): this {
+    this.animations.push({ kind: "rotateTo", degrees, ...opts });
+    return this;
+  }
+
+  fadeTo(opacity: number, opts: TimingOpts = {}): this {
+    this.animations.push({ kind: "fadeTo", opacity, ...opts });
+    return this;
+  }
+}

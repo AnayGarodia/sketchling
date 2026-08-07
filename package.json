@@ -1,0 +1,27 @@
+{
+  "name": "sketchling",
+  "version": "0.1.0",
+  "description": "A hand-drawn illustration and animation language for LLMs.",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "sketchling": "./bin/sketchling.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "demo": "npm run build && node bin/sketchling.js render examples/keyhole-laptop.ts --out preview.png"
+  },
+  "dependencies": {
+    "commander": "^12.1.0",
+    "esbuild": "^0.24.0",
+    "gsap": "^3.12.5",
+    "playwright": "^1.48.0",
+    "roughjs": "^4.6.6"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "@types/node": "^22.7.5"
+  }
+}
