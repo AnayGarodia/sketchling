@@ -14,7 +14,7 @@ const lid = sketch.loop(
   ],
   { color: ink, weight: "bold", looseness: 0.22, energy: "quick", smooth: false }
 );
-scene.add(lid).drawOn({ at: 0, duration: 1.6 });
+scene.add(lid).drawOn({ at: 0.0, duration: 0.99 });
 
 const screen = sketch.loop(
   [
@@ -32,7 +32,7 @@ const screen = sketch.loop(
     fill: { color: paper, style: "solid" },
   }
 );
-scene.add(screen).drawOn({ at: 1.9, duration: 1.3 });
+scene.add(screen).drawOn({ at: 1.18, duration: 0.81 });
 
 const keyholeHead = sketch.blob(
   200,
@@ -41,7 +41,7 @@ const keyholeHead = sketch.blob(
   { color: ink, weight: "confident", looseness: 0.16, energy: "calm", fill: { color: ink, style: "solid" } },
   16
 );
-scene.add(keyholeHead).drawOn({ at: 5.05, duration: 0.6 });
+scene.add(keyholeHead).drawOn({ at: 3.13, duration: 0.37 });
 
 const keyholeBody = sketch.loop(
   [
@@ -59,7 +59,7 @@ const keyholeBody = sketch.loop(
     fill: { color: ink, style: "solid" },
   }
 );
-scene.add(keyholeBody).drawOn({ at: 5.85, duration: 0.5 });
+scene.add(keyholeBody).drawOn({ at: 3.63, duration: 0.31 });
 
 const base = sketch.loop(
   [
@@ -77,6 +77,6 @@ const base = sketch.loop(
     fill: { color: paper, style: "solid" },
   }
 );
-scene.add(base).drawOn({ at: 3.5, duration: 1.3 });
+scene.add(base).drawOn({ at: 2.17, duration: 0.81 });
 
 export default scene;

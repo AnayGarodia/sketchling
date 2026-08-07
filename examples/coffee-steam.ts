@@ -19,7 +19,7 @@ const mugBody = sketch.loop(
   ],
   { color: ink, weight: "bold", looseness: 0.22, energy: "calm", smooth: false, fill: { color: cream, style: "solid" } }
 );
-scene.add(mugBody).drawOn({ at: 0, duration: 1.3 });
+scene.add(mugBody).drawOn({ at: 0.0, duration: 0.81 });
 
 const handle = sketch.stroke(
   [
@@ -31,7 +31,7 @@ const handle = sketch.stroke(
   ],
   { color: ink, weight: "confident", looseness: 0.25, energy: "calm", smooth: true }
 );
-scene.add(handle).drawOn({ at: 1.55, duration: 0.6 });
+scene.add(handle).drawOn({ at: 0.96, duration: 0.37 });
 
 const coffeeSurface = sketch.loop(
   [
@@ -42,7 +42,7 @@ const coffeeSurface = sketch.loop(
   ],
   { color: ink, weight: "confident", looseness: 0.2, energy: "calm", smooth: false, fill: { color: coffee, style: "solid" } }
 );
-scene.add(coffeeSurface).drawOn({ at: 2.4, duration: 0.5 });
+scene.add(coffeeSurface).drawOn({ at: 1.49, duration: 0.31 });
 
 const steam1 = sketch.stroke(
   [
@@ -53,12 +53,12 @@ const steam1 = sketch.stroke(
   ],
   { color: steamColor, weight: "light", looseness: 0.3, energy: "calm", smooth: true }
 );
-scene.add(steam1).drawOn({ at: 3.2, duration: 0.8 });
+scene.add(steam1).drawOn({ at: 1.98, duration: 0.5 });
 steam1
-  .moveBy(-5, -18, { at: 4.0, duration: 1.8, ease: "sine.inOut" })
-  .fadeTo(0.15, { at: 4.0, duration: 0.9, ease: "sine.inOut" })
-  .fadeTo(0.55, { at: 4.9, duration: 0.9, ease: "sine.inOut" })
-  .fadeTo(0, { at: 5.8, duration: 0.8, ease: "sine.in" });
+  .moveBy(-5, -18, { at: 2.48, duration: 1.12, ease: "sine.inOut" })
+  .fadeTo(0.15, { at: 2.48, duration: 0.56, ease: "sine.inOut" })
+  .fadeTo(0.55, { at: 3.04, duration: 0.56, ease: "sine.inOut" })
+  .fadeTo(0, { at: 3.6, duration: 0.5, ease: "sine.in" });
 
 const steam2 = sketch.stroke(
   [
@@ -69,11 +69,11 @@ const steam2 = sketch.stroke(
   ],
   { color: steamColor, weight: "light", looseness: 0.3, energy: "calm", smooth: true }
 );
-scene.add(steam2).drawOn({ at: 3.75, duration: 0.8 });
+scene.add(steam2).drawOn({ at: 2.33, duration: 0.5 });
 steam2
-  .moveBy(5, -18, { at: 4.55, duration: 1.8, ease: "sine.inOut" })
-  .fadeTo(0.15, { at: 4.55, duration: 0.9, ease: "sine.inOut" })
-  .fadeTo(0.55, { at: 5.45, duration: 0.9, ease: "sine.inOut" })
-  .fadeTo(0, { at: 6.35, duration: 0.8, ease: "sine.in" });
+  .moveBy(5, -18, { at: 2.82, duration: 1.12, ease: "sine.inOut" })
+  .fadeTo(0.15, { at: 2.82, duration: 0.56, ease: "sine.inOut" })
+  .fadeTo(0.55, { at: 3.38, duration: 0.56, ease: "sine.inOut" })
+  .fadeTo(0, { at: 3.94, duration: 0.5, ease: "sine.in" });
 
 export default scene;

@@ -17,7 +17,7 @@ const underline = sketch.stroke(
   ],
   { color: ink, weight: "bold", looseness: 0.35, energy: "quick", smooth: true }
 );
-scene.add(underline).drawOn({ at: 0, duration: 1.0 });
+scene.add(underline).drawOn({ at: 0.0, duration: 0.62 });
 
 const spiral = sketch.stroke(
   [
@@ -33,7 +33,7 @@ const spiral = sketch.stroke(
   ],
   { color: accent, weight: "confident", looseness: 0.3, energy: "quick", smooth: true }
 );
-scene.add(spiral).drawOn({ at: 1.3, duration: 1.1 });
+scene.add(spiral).drawOn({ at: 0.81, duration: 0.68 });
 
 const arrow = sketch.stroke(
   [
@@ -42,7 +42,7 @@ const arrow = sketch.stroke(
   ],
   { color: ink, weight: "confident", looseness: 0.25, energy: "quick", smooth: false }
 );
-scene.add(arrow).drawOn({ at: 2.7, duration: 0.5 });
+scene.add(arrow).drawOn({ at: 1.67, duration: 0.31 });
 
 const arrowHeadTop = sketch.stroke(
   [
@@ -51,7 +51,7 @@ const arrowHeadTop = sketch.stroke(
   ],
   { color: ink, weight: "confident", looseness: 0.25, energy: "quick", smooth: false }
 );
-scene.add(arrowHeadTop).drawOn({ at: 3.35, duration: 0.25 });
+scene.add(arrowHeadTop).drawOn({ at: 2.08, duration: 0.15 });
 
 const arrowHeadBottom = sketch.stroke(
   [
@@ -60,7 +60,7 @@ const arrowHeadBottom = sketch.stroke(
   ],
   { color: ink, weight: "confident", looseness: 0.25, energy: "quick", smooth: false }
 );
-scene.add(arrowHeadBottom).drawOn({ at: 3.7, duration: 0.25 });
+scene.add(arrowHeadBottom).drawOn({ at: 2.29, duration: 0.15 });
 
 const squiggle = sketch.stroke(
   [
@@ -73,6 +73,6 @@ const squiggle = sketch.stroke(
   ],
   { color: accent, weight: "light", looseness: 0.4, energy: "frantic", smooth: true }
 );
-scene.add(squiggle).drawOn({ at: 4.25, duration: 1.0 });
+scene.add(squiggle).drawOn({ at: 2.63, duration: 0.62 });
 
 export default scene;

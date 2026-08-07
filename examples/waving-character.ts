@@ -26,10 +26,10 @@ const body = sketch.loop(
     fill: { color: shirt, style: "solid" },
   }
 );
-scene.add(body).drawOn({ at: 0, duration: 1.5 });
+scene.add(body).drawOn({ at: 0.0, duration: 0.93 });
 
 const head = sketch.blob(180, 190, 55, { color: ink, weight: "bold", looseness: 0.28, energy: "calm", fill: { color: skin, style: "solid" } }, 14);
-scene.add(head).drawOn({ at: 1.8, duration: 1.3 });
+scene.add(head).drawOn({ at: 1.12, duration: 0.81 });
 
 const leftArm = sketch.stroke(
   [
@@ -39,7 +39,7 @@ const leftArm = sketch.stroke(
   ],
   { color: ink, weight: "confident", looseness: 0.3, energy: "calm", smooth: true }
 );
-scene.add(leftArm).drawOn({ at: 3.4, duration: 0.7 });
+scene.add(leftArm).drawOn({ at: 2.11, duration: 0.43 });
 
 // Pivoted at its own first point (the shoulder) rather than its own bbox center, so the
 // post-draw wave below swings from the shoulder instead of spinning around the arm's midpoint.
@@ -54,18 +54,18 @@ const rightArm = sketch
     { color: ink, weight: "confident", looseness: 0.3, energy: "quick", smooth: true }
   )
   .pivotAt(232, 275);
-scene.add(rightArm).drawOn({ at: 4.35, duration: 0.8 });
+scene.add(rightArm).drawOn({ at: 2.7, duration: 0.5 });
 rightArm
-  .rotateTo(14, { at: 5.35, duration: 0.32, ease: "sine.inOut" })
-  .rotateTo(-10, { at: 5.67, duration: 0.32, ease: "sine.inOut" })
-  .rotateTo(14, { at: 5.99, duration: 0.32, ease: "sine.inOut" })
-  .rotateTo(0, { at: 6.31, duration: 0.3, ease: "sine.inOut" });
+  .rotateTo(14, { at: 3.32, duration: 0.2, ease: "sine.inOut" })
+  .rotateTo(-10, { at: 3.52, duration: 0.2, ease: "sine.inOut" })
+  .rotateTo(14, { at: 3.71, duration: 0.2, ease: "sine.inOut" })
+  .rotateTo(0, { at: 3.91, duration: 0.19, ease: "sine.inOut" });
 
 const leftEye = sketch.blob(160, 180, 5, { color: ink, weight: "confident", fill: { color: ink, style: "solid" } }, 8);
-scene.add(leftEye).drawOn({ at: 6.9, duration: 0.3 });
+scene.add(leftEye).drawOn({ at: 4.28, duration: 0.19 });
 
 const rightEye = sketch.blob(200, 180, 5, { color: ink, weight: "confident", fill: { color: ink, style: "solid" } }, 8);
-scene.add(rightEye).drawOn({ at: 7.35, duration: 0.3 });
+scene.add(rightEye).drawOn({ at: 4.56, duration: 0.19 });
 
 const smile = sketch.stroke(
   [
@@ -75,6 +75,6 @@ const smile = sketch.stroke(
   ],
   { color: ink, weight: "confident", looseness: 0.25, energy: "calm", smooth: true }
 );
-scene.add(smile).drawOn({ at: 7.8, duration: 0.6 });
+scene.add(smile).drawOn({ at: 4.84, duration: 0.37 });
 
 export default scene;

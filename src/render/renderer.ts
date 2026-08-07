@@ -2,7 +2,8 @@ import rough from "roughjs";
 import gsap from "gsap";
 import { EasePack, RoughEase } from "gsap/EasePack";
 import type { SerializedNode, SerializedScene } from "../core/types.js";
-import { pathFromPoints } from "../core/geometry.js";
+import { bboxOfPoints, pathFromPoints } from "../core/geometry.js";
+import type { Point } from "../core/types.js";
 import { roughOptionsFor, strokeWidthOf } from "./style.js";
 
 gsap.registerPlugin(EasePack);
@@ -25,9 +26,9 @@ const HAND_DRAWN_EASE = RoughEase.config({
 // longer. When a scene doesn't specify drawOn's duration, derive it from the path length
 // instead of a flat default, clamped so a tiny detail doesn't vanish in a blink and a huge
 // outline doesn't drag.
-const PEN_SPEED_PX_PER_S = 220;
-const MIN_DRAW_DURATION = 0.6;
-const MAX_DRAW_DURATION = 3;
+const PEN_SPEED_PX_PER_S = 300;
+const MIN_DRAW_DURATION = 0.45;
+const MAX_DRAW_DURATION = 2.2;
 
 // A line that stops moving the instant it's drawn reads as dead. Real sketched lines keep
 // re-jittering after they land — the pen never traces the exact same wobble twice. Each
@@ -116,6 +117,7 @@ function buildNode(
   let cleanPathD: string | null = null;
   let strokeWidthPx = 3;
   let closed = false;
+  let points: Point[] | null = null;
 
   if (node.type === "stroke" && node.points) {
     const smooth = node.style?.smooth ?? true;
@@ -143,6 +145,7 @@ function buildNode(
     cleanPathD = d;
     strokeWidthPx = strokeWidthOf(node.style?.weight);
     closed = !!node.closed;
+    points = node.points;
   }
 
   if (node.children) {
@@ -151,7 +154,7 @@ function buildNode(
     }
   }
 
-  applyAnimations(g, node, tl, cleanPathD, strokeWidthPx, closed);
+  applyAnimations(g, node, tl, cleanPathD, strokeWidthPx, closed, points);
 }
 
 function applyInitialTransform(g: SVGGElement, node: SerializedNode): void {
@@ -177,7 +180,8 @@ function applyAnimations(
   tl: gsap.core.Timeline,
   cleanPathD: string | null,
   strokeWidthPx: number,
-  closed: boolean
+  closed: boolean,
+  points: Point[] | null
 ): void {
   for (const op of node.animations) {
     const at = op.at ?? 0;
@@ -186,7 +190,7 @@ function applyAnimations(
       case "drawOn":
         // Duration is intentionally NOT defaulted here — applyDrawOn derives it from the
         // path's actual length when omitted, rather than every shape sharing one flat pace.
-        applyDrawOn(g, tl, at, op.duration, op.ease ?? HAND_DRAWN_EASE, cleanPathD, strokeWidthPx, closed);
+        applyDrawOn(g, tl, at, op.duration, op.ease ?? HAND_DRAWN_EASE, cleanPathD, strokeWidthPx, closed, points);
         break;
       case "appear": {
         const duration = op.duration ?? 0.6;
@@ -215,13 +219,32 @@ function applyAnimations(
 }
 
 /**
+ * Builds a boustrophedon ("mowing the lawn") zigzag spanning a bbox — one continuous path
+ * so it can be dash-revealed as a single sweep, like a hand coloring in an area row by row
+ * rather than a flat wash appearing all at once.
+ */
+function buildScribbleD(bbox: { minX: number; minY: number; maxX: number; maxY: number }, rows: number): string {
+  const rowHeight = (bbox.maxY - bbox.minY) / rows;
+  let d = "";
+  for (let i = 0; i <= rows; i++) {
+    const y = bbox.minY + i * rowHeight;
+    const leftToRight = i % 2 === 0;
+    const x1 = leftToRight ? bbox.minX : bbox.maxX;
+    const x2 = leftToRight ? bbox.maxX : bbox.minX;
+    d += i === 0 ? `M ${x1} ${y} L ${x2} ${y} ` : `L ${x1} ${y} L ${x2} ${y} `;
+  }
+  return d.trim();
+}
+
+/**
  * Reveals the rendered shape through a mask driven by the *clean* geometric path (the one
  * `pathFromPoints` produced), not rough.js's own output path. rough.js's sketchy rendering
  * authors its `d` as multiple short overlapping passes for visual texture, not as one
  * sequential sweep — dash-revealing that path directly doesn't trace in visual order at all
  * (verified: a rectangle showed fully closed at 18% into its draw). The mask has two parts:
  * a stroked copy of the clean path (the pen trace, dash-revealed) and, for closed shapes, a
- * filled copy (the interior flood, opacity-revealed once the trace mostly catches up) —
+ * clipped zigzag scribble that dash-reveals the interior row by row once the trace mostly
+ * catches up (like a hand coloring it in, rather than the fill fading in as a flat block) —
  * together they reveal the actual rendered artwork, hachure fills included, in the order a
  * hand would actually draw it.
  */
@@ -233,7 +256,8 @@ function applyDrawOn(
   ease: string | ((progress: number) => number),
   cleanPathD: string | null,
   strokeWidthPx: number,
-  closed: boolean
+  closed: boolean,
+  points: Point[] | null
 ): void {
   const artGroup = g.querySelector(":scope > g") as SVGGElement | null;
   if (!cleanPathD || !artGroup) return;
@@ -260,14 +284,39 @@ function applyDrawOn(
   trace.setAttribute("stroke-linejoin", "round");
   mask.appendChild(trace);
 
-  let flood: SVGPathElement | null = null;
-  if (closed) {
-    flood = document.createElementNS(SVG_NS, "path");
-    flood.setAttribute("d", cleanPathD);
-    flood.setAttribute("fill", "#fff");
-    flood.setAttribute("stroke", "none");
-    gsap.set(flood, { opacity: 0 });
-    mask.appendChild(flood);
+  let scribble: SVGPathElement | null = null;
+  let scribbleLen = 0;
+  if (closed && points && points.length >= 3) {
+    // Clipped to the shape's own silhouette so the zigzag (authored over the bbox, which is
+    // bigger than the shape for anything non-rectangular) doesn't reveal square corners.
+    const clipId = `sk-clip-${maskIdCounter}`;
+    const clipPath = document.createElementNS(SVG_NS, "clipPath");
+    clipPath.setAttribute("id", clipId);
+    clipPath.setAttribute("clipPathUnits", "userSpaceOnUse");
+    const clipShape = document.createElementNS(SVG_NS, "path");
+    clipShape.setAttribute("d", cleanPathD);
+    clipPath.appendChild(clipShape);
+    defs.appendChild(clipPath);
+
+    const bbox = bboxOfPoints(points);
+    const rowSpacing = Math.max(6, strokeWidthPx * 1.5);
+    const rows = Math.max(3, Math.min(16, Math.round((bbox.maxY - bbox.minY) / rowSpacing)));
+
+    const scribbleWrap = document.createElementNS(SVG_NS, "g");
+    scribbleWrap.setAttribute("clip-path", `url(#${clipId})`);
+    scribble = document.createElementNS(SVG_NS, "path");
+    scribble.setAttribute("d", buildScribbleD(bbox, rows));
+    scribble.setAttribute("fill", "none");
+    scribble.setAttribute("stroke", "#fff");
+    scribble.setAttribute("stroke-width", String(rowSpacing * 1.7));
+    scribble.setAttribute("stroke-linecap", "round");
+    scribble.setAttribute("stroke-linejoin", "round");
+    scribbleWrap.appendChild(scribble);
+    mask.appendChild(scribbleWrap);
+
+    scribbleLen = scribble.getTotalLength();
+    scribble.style.strokeDasharray = `${scribbleLen}`;
+    scribble.style.strokeDashoffset = `${scribbleLen}`;
   }
 
   defs.appendChild(mask);
@@ -304,12 +353,14 @@ function applyDrawOn(
   tl.fromTo(tip, { opacity: 0 }, { opacity: 1, duration: fade }, at);
   tl.to(tip, { opacity: 0, duration: fade }, at + duration - fade);
 
-  if (flood) {
-    // Interior trails the trace like ink catching up to a pen, instead of appearing
-    // concurrently with it — which would look like two unrelated motions layered together.
+  if (scribble) {
+    // Interior colors in row by row, trailing the trace like a hand catching up to its own
+    // outline, instead of the old flat opacity fade — which read as a block appearing, not
+    // as something being filled in.
     const fillAt = at + duration * 0.55;
     const fillDuration = duration * 0.7;
-    tl.to(flood, { opacity: 1, duration: fillDuration, ease: "sine.inOut" }, fillAt);
+    const scribbleEl = scribble;
+    tl.to(scribbleEl, { strokeDashoffset: 0, duration: fillDuration, ease: "sine.inOut" }, fillAt);
   }
 }
 

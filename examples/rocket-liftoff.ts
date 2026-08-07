@@ -23,7 +23,7 @@ const body = sketch.loop(
   ],
   { color: ink, weight: "bold", looseness: 0.2, energy: "calm", smooth: true, fill: { color: hull, style: "solid" } }
 );
-rocket.add(body).drawOn({ at: 0, duration: 1.4 });
+rocket.add(body).drawOn({ at: 0.0, duration: 0.87 });
 
 const finLeft = sketch.loop(
   [
@@ -33,7 +33,7 @@ const finLeft = sketch.loop(
   ],
   { color: ink, weight: "confident", looseness: 0.25, energy: "quick", fill: { color: accent, style: "solid" } }
 );
-rocket.add(finLeft).drawOn({ at: 1.7, duration: 0.5 });
+rocket.add(finLeft).drawOn({ at: 1.05, duration: 0.31 });
 
 const finRight = sketch.loop(
   [
@@ -43,10 +43,10 @@ const finRight = sketch.loop(
   ],
   { color: ink, weight: "confident", looseness: 0.25, energy: "quick", fill: { color: accent, style: "solid" } }
 );
-rocket.add(finRight).drawOn({ at: 2.4, duration: 0.5 });
+rocket.add(finRight).drawOn({ at: 1.49, duration: 0.31 });
 
 const window_ = sketch.blob(180, 180, 22, { color: ink, weight: "confident", looseness: 0.18, energy: "calm", fill: { color: "#7fa7c9", style: "cross-hatch", density: 0.6 } }, 14);
-rocket.add(window_).drawOn({ at: 3.15, duration: 0.6 });
+rocket.add(window_).drawOn({ at: 1.95, duration: 0.37 });
 
 const exhaust1 = sketch.stroke(
   [
@@ -56,7 +56,7 @@ const exhaust1 = sketch.stroke(
   ],
   { color: flame, weight: "confident", looseness: 0.4, energy: "frantic", smooth: true }
 );
-scene.add(exhaust1).drawOn({ at: 4.0, duration: 0.4 });
+scene.add(exhaust1).drawOn({ at: 2.48, duration: 0.25 });
 
 const exhaust2 = sketch.stroke(
   [
@@ -66,7 +66,7 @@ const exhaust2 = sketch.stroke(
   ],
   { color: flame, weight: "bold", looseness: 0.35, energy: "frantic", smooth: true }
 );
-scene.add(exhaust2).drawOn({ at: 4.45, duration: 0.4 });
+scene.add(exhaust2).drawOn({ at: 2.76, duration: 0.25 });
 
 const exhaust3 = sketch.stroke(
   [
@@ -76,14 +76,14 @@ const exhaust3 = sketch.stroke(
   ],
   { color: flame, weight: "confident", looseness: 0.4, energy: "frantic", smooth: true }
 );
-scene.add(exhaust3).drawOn({ at: 4.9, duration: 0.4 });
+scene.add(exhaust3).drawOn({ at: 3.04, duration: 0.25 });
 
 // Liftoff: accelerating off the top of the frame, like a real launch rather than a UI slide.
-rocket.moveBy(0, -420, { at: 5.7, duration: 1.3, ease: "power2.in" });
+rocket.moveBy(0, -420, { at: 3.53, duration: 0.81, ease: "power2.in" });
 
 // The exhaust stays behind and dissipates instead of being dragged along with the rocket.
-exhaust1.fadeTo(0, { at: 5.7, duration: 1.0, ease: "sine.in" });
-exhaust2.fadeTo(0, { at: 5.85, duration: 1.0, ease: "sine.in" });
-exhaust3.fadeTo(0, { at: 5.7, duration: 1.0, ease: "sine.in" });
+exhaust1.fadeTo(0, { at: 3.53, duration: 0.62, ease: "sine.in" });
+exhaust2.fadeTo(0, { at: 3.63, duration: 0.62, ease: "sine.in" });
+exhaust3.fadeTo(0, { at: 3.53, duration: 0.62, ease: "sine.in" });
 
 export default scene;
