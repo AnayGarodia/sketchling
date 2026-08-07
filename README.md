@@ -62,7 +62,7 @@ sketchling render scene.ts --serve                       # open it live in a rea
 
 ## How it works
 
-A scene graph (`Scene` → `Stroke`/`Blob`/`Group`, styled and timed) is built by running your `scene.ts` in Node — the core library has no DOM dependency, so this is cheap and lets the Tier 0 linter run before any rendering happens. The serialized scene is then handed to a headless Chromium page, where [rough.js](https://roughjs.com) draws it as SVG and [GSAP](https://gsap.com) drives the timeline. `drawOn` is implemented as a stroke-dasharray reveal on the actual rough.js-generated path, so the hand-drawn jitter draws in stroke-by-stroke, not as a generic wipe.
+A scene graph (`Scene` → `Stroke`/`Blob`/`Group`, styled and timed) is built by running your `scene.ts` in Node — the core library has no DOM dependency, so this is cheap and lets the Tier 0 linter run before any rendering happens. The serialized scene is then handed to a headless Chromium page, where [rough.js](https://roughjs.com) draws it as SVG and [GSAP](https://gsap.com) drives the timeline. `drawOn` is implemented as a stroke-dasharray reveal on the actual rough.js-generated path (steady pace, not eased — an ease-out here reads as mechanical rather than drawn), so the hand-drawn jitter draws in stroke-by-stroke, not as a generic wipe. A filled shape's fill isn't a separate concurrent fade: it trails the outline (starting partway through the stroke, settling shortly after it finishes), like ink catching up to a pen, rather than two unrelated motions layered on top of each other.
 
 ## Status
 

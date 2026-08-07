@@ -93,30 +93,34 @@ function applyAnimations(g: SVGGElement, node: SerializedNode, tl: gsap.core.Tim
   for (const op of node.animations) {
     const at = op.at ?? 0;
     const duration = op.duration ?? 0.6;
-    const ease = op.ease ?? "power2.out";
 
     switch (op.kind) {
       case "drawOn":
-        applyDrawOn(g, tl, at, duration, ease);
+        // A steady pace (not eased) reads as a hand actually tracing the line — an
+        // ease-out here would speed up then coast, which looks mechanical rather
+        // than drawn. Callers can still override via op.ease.
+        applyDrawOn(g, tl, at, duration, op.ease ?? "none");
         break;
-      case "appear":
+      case "appear": {
+        const ease = op.ease ?? "power2.out";
         gsap.set(g, { opacity: 0 });
         tl.to(g, { opacity: 1, duration, ease }, at);
         break;
+      }
       case "moveTo":
-        tl.to(g, { x: op.x, y: op.y, duration, ease }, at);
+        tl.to(g, { x: op.x, y: op.y, duration, ease: op.ease ?? "power2.out" }, at);
         break;
       case "moveBy":
-        tl.to(g, { x: `+=${op.dx}`, y: `+=${op.dy}`, duration, ease }, at);
+        tl.to(g, { x: `+=${op.dx}`, y: `+=${op.dy}`, duration, ease: op.ease ?? "power2.out" }, at);
         break;
       case "scaleTo":
-        tl.to(g, { scale: op.scale, duration, ease }, at);
+        tl.to(g, { scale: op.scale, duration, ease: op.ease ?? "power2.out" }, at);
         break;
       case "rotateTo":
-        tl.to(g, { rotation: op.degrees, duration, ease }, at);
+        tl.to(g, { rotation: op.degrees, duration, ease: op.ease ?? "power2.out" }, at);
         break;
       case "fadeTo":
-        tl.to(g, { opacity: op.opacity, duration, ease }, at);
+        tl.to(g, { opacity: op.opacity, duration, ease: op.ease ?? "power2.out" }, at);
         break;
     }
   }
@@ -133,8 +137,13 @@ function applyDrawOn(g: SVGGElement, tl: gsap.core.Timeline, at: number, duratio
       p.style.strokeDashoffset = `${len}`;
       tl.to(p, { strokeDashoffset: 0, duration, ease }, at);
     } else {
+      // Fill trails the outline like ink catching up to a pen, instead of fading in
+      // concurrently — a simultaneous fade reads as two unrelated motions layered on
+      // top of each other rather than one drawing gesture.
       gsap.set(p, { opacity: 0 });
-      tl.to(p, { opacity: 1, duration, ease }, at);
+      const fillAt = at + duration * 0.55;
+      const fillDuration = duration * 0.7;
+      tl.to(p, { opacity: 1, duration: fillDuration, ease: "sine.inOut" }, fillAt);
     }
   }
 }

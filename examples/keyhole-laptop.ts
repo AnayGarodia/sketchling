@@ -14,7 +14,7 @@ const lid = sketch.loop(
   ],
   { color: ink, weight: "bold", looseness: 0.22, energy: "quick", smooth: false }
 );
-scene.add(lid).drawOn({ at: 0, duration: 0.5 });
+scene.add(lid).drawOn({ at: 0, duration: 0.55 });
 
 const screen = sketch.loop(
   [
@@ -32,7 +32,7 @@ const screen = sketch.loop(
     fill: { color: paper, style: "solid" },
   }
 );
-scene.add(screen).drawOn({ at: 0.3, duration: 0.5 });
+scene.add(screen).drawOn({ at: 0.35, duration: 0.5 });
 
 const keyholeHead = sketch.blob(
   200,
@@ -41,7 +41,7 @@ const keyholeHead = sketch.blob(
   { color: ink, weight: "confident", looseness: 0.16, energy: "calm", fill: { color: ink, style: "solid" } },
   16
 );
-scene.add(keyholeHead).drawOn({ at: 0.7, duration: 0.35 });
+scene.add(keyholeHead).drawOn({ at: 0.95, duration: 0.3 });
 
 const keyholeBody = sketch.loop(
   [
@@ -59,7 +59,7 @@ const keyholeBody = sketch.loop(
     fill: { color: ink, style: "solid" },
   }
 );
-scene.add(keyholeBody).drawOn({ at: 0.85, duration: 0.3 });
+scene.add(keyholeBody).drawOn({ at: 1.05, duration: 0.25 });
 
 const base = sketch.loop(
   [
@@ -77,10 +77,6 @@ const base = sketch.loop(
     fill: { color: paper, style: "solid" },
   }
 );
-scene.add(base).drawOn({ at: 0.5, duration: 0.5 });
-
-// a little personality once everything has landed
-keyholeHead.scaleTo(1.1, { at: 1.5, duration: 0.25, ease: "back.out(2.5)" }).scaleTo(1, { at: 1.75, duration: 0.2 });
-keyholeBody.scaleTo(1.1, { at: 1.5, duration: 0.25, ease: "back.out(2.5)" }).scaleTo(1, { at: 1.75, duration: 0.2 });
+scene.add(base).drawOn({ at: 0.65, duration: 0.45 });
 
 export default scene;
