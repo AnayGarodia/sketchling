@@ -1,9 +1,9 @@
-import { mount } from "./renderer.js";
-import type { SerializedScene } from "../core/types.js";
+import { mountRenderable } from "./renderer.js";
+import type { Renderable } from "../core/types.js";
 
 declare global {
   interface Window {
-    __SKETCHLING_SCENE__: SerializedScene;
+    __SKETCHLING_SCENE__: Renderable;
     __sketchling: {
       ready: boolean;
       seekTo: (t: number) => void;
@@ -13,7 +13,7 @@ declare global {
 }
 
 const stage = document.getElementById("stage")!;
-const result = mount(window.__SKETCHLING_SCENE__, stage);
+const result = mountRenderable(window.__SKETCHLING_SCENE__, stage);
 
 window.__sketchling = {
   ready: true,

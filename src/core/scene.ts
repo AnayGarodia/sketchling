@@ -38,6 +38,7 @@ export class Scene {
 
   serialize(): SerializedScene {
     return {
+      kind: "scene",
       width: this.width,
       height: this.height,
       background: this.background,

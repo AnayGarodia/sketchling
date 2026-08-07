@@ -2,6 +2,8 @@ import { Stroke } from "./stroke.js";
 import { Blob } from "./blob.js";
 import { Group } from "./group.js";
 import { Scene, type SceneOptions } from "./scene.js";
+import { Film, type FilmOptions } from "./film.js";
+import { buildText } from "./font.js";
 import type { NodeStyle, Point } from "./types.js";
 
 export const sketch = {
@@ -19,5 +21,14 @@ export const sketch = {
   },
   group(children: import("./node.js").SketchNode[] = [], style: NodeStyle = {}): Group {
     return new Group(children, style);
+  },
+  film(opts: FilmOptions = {}): Film {
+    return new Film(opts);
+  },
+  /** Hand-drawn lettering — lowercase a-z, digits, and basic punctuation, no case
+   * distinction (uppercase reuses the lowercase glyph). Returns a Group of per-letter
+   * strokes; animate it with `.stagger()` for a letter-by-letter reveal. */
+  text(str: string, x: number, y: number, style: NodeStyle = {}, opts: { size?: number } = {}): Group {
+    return buildText(str, x, y, style, opts.size ?? 1);
   },
 };

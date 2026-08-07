@@ -31,10 +31,26 @@ export function lintScene(scene: SerializedScene): LintFinding[] {
       findings.push({ level: "error", message: `node ${s.nodeId} renders fully off-canvas`, nodeId: s.nodeId });
       continue;
     }
-    const visibleW = Math.min(maxX, scene.width) - Math.max(minX, 0);
-    const visibleH = Math.min(maxY, scene.height) - Math.max(minY, 0);
-    const shapeArea = Math.max(1e-6, (maxX - minX) * (maxY - minY));
-    const visibleRatio = (Math.max(0, visibleW) * Math.max(0, visibleH)) / shapeArea;
+    const w = maxX - minX;
+    const h = maxY - minY;
+    const visibleW = Math.max(0, Math.min(maxX, scene.width) - Math.max(minX, 0));
+    const visibleH = Math.max(0, Math.min(maxY, scene.height) - Math.max(minY, 0));
+
+    // Area-based visibility breaks down for a perfectly axis-aligned line — a vertical
+    // stroke has zero bbox width, so width*height is always zero regardless of position,
+    // which used to read as "0% visible" even when the line was fully on-canvas. Fall
+    // back to a 1D overlap ratio along whichever axis actually has extent.
+    let visibleRatio: number;
+    if (w < 0.5 && h < 0.5) {
+      visibleRatio = 1; // point-like; the degenerate-shape check below already flags this
+    } else if (w < 0.5) {
+      visibleRatio = visibleH / h;
+    } else if (h < 0.5) {
+      visibleRatio = visibleW / w;
+    } else {
+      visibleRatio = (visibleW * visibleH) / (w * h);
+    }
+
     if (visibleRatio < 0.5) {
       findings.push({
         level: "warn",

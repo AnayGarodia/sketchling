@@ -61,9 +61,29 @@ export interface SerializedNode {
 }
 
 export interface SerializedScene {
+  kind: "scene";
   width: number;
   height: number;
   background: string;
   seed: number;
   children: SerializedNode[];
 }
+
+export type FilmTransition = "cut" | "fade";
+
+export interface FilmEntry {
+  scene: SerializedScene;
+  transition: FilmTransition;
+  transitionDuration: number;
+  hold: number;
+}
+
+export interface SerializedFilm {
+  kind: "film";
+  width: number;
+  height: number;
+  background: string;
+  entries: FilmEntry[];
+}
+
+export type Renderable = SerializedScene | SerializedFilm;

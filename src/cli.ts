@@ -8,7 +8,7 @@ import path from "node:path";
 import { pathToFileURL, fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
 import { lintScene, type LintFinding } from "./lint/lint.js";
-import type { SerializedScene } from "./core/types.js";
+import type { Renderable } from "./core/types.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -51,7 +51,7 @@ async function runRender(sceneFile: string, opts: RenderOpts): Promise<void> {
   const workdir = mkdtempSync(path.join(tmpdir(), "sketchling-"));
 
   const serialized = await buildScene(absScene, workdir);
-  if (!opts.quietLint) printFindings(lintScene(serialized));
+  if (!opts.quietLint) printFindings(lintRenderable(serialized));
 
   const htmlPath = await buildHarness(serialized, workdir);
 
@@ -118,7 +118,7 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
   ]);
 }
 
-async function buildScene(absScene: string, workdir: string): Promise<SerializedScene> {
+async function buildScene(absScene: string, workdir: string): Promise<Renderable> {
   const sceneBundlePath = path.join(workdir, "scene.mjs");
   await esbuild.build({
     entryPoints: [absScene],
@@ -131,12 +131,19 @@ async function buildScene(absScene: string, workdir: string): Promise<Serialized
   const mod = await import(pathToFileURL(sceneBundlePath).href);
   const scene = mod.default ?? mod.scene;
   if (!scene || typeof scene.serialize !== "function") {
-    throw new Error(`${absScene} must \`export default\` a Scene (from sketch.scene()).`);
+    throw new Error(`${absScene} must \`export default\` a Scene (from sketch.scene()) or a Film (from sketch.film()).`);
   }
   return scene.serialize();
 }
 
-async function buildHarness(serialized: SerializedScene, workdir: string): Promise<string> {
+function lintRenderable(renderable: Renderable): LintFinding[] {
+  if (renderable.kind === "scene") return lintScene(renderable);
+  return renderable.entries.flatMap((entry, i) =>
+    lintScene(entry.scene).map((f) => ({ ...f, message: `[scene ${i}] ${f.message}` }))
+  );
+}
+
+async function buildHarness(serialized: Renderable, workdir: string): Promise<string> {
   const runtimeBundlePath = path.join(workdir, "runtime.js");
   await esbuild.build({
     entryPoints: [path.join(pkgRoot, "src/render/harness-entry.ts")],

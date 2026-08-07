@@ -1,8 +1,8 @@
 import rough from "roughjs";
 import gsap from "gsap";
 import { EasePack, RoughEase } from "gsap/EasePack";
-import type { SerializedNode, SerializedScene } from "../core/types.js";
-import { bboxOfPoints, pathFromPoints } from "../core/geometry.js";
+import type { Renderable, SerializedFilm, SerializedNode, SerializedScene } from "../core/types.js";
+import { bboxOfPoints, pathFromPoints, unionBBox, type BBox } from "../core/geometry.js";
 import type { Point } from "../core/types.js";
 import { roughOptionsFor, strokeWidthOf } from "./style.js";
 
@@ -50,6 +50,11 @@ export interface MountResult {
   totalDuration: () => number;
 }
 
+/** Dispatches on `renderable.kind` — the one entry point the browser harness calls. */
+export function mountRenderable(renderable: Renderable, container: HTMLElement): MountResult {
+  return renderable.kind === "film" ? mountFilm(renderable, container) : mount(renderable, container);
+}
+
 export function mount(scene: SerializedScene, container: HTMLElement): MountResult {
   const svg = document.createElementNS(SVG_NS, "svg");
   svg.setAttribute("width", String(scene.width));
@@ -59,12 +64,6 @@ export function mount(scene: SerializedScene, container: HTMLElement): MountResu
   const defs = document.createElementNS(SVG_NS, "defs");
   svg.appendChild(defs);
 
-  const bg = document.createElementNS(SVG_NS, "rect");
-  bg.setAttribute("width", String(scene.width));
-  bg.setAttribute("height", String(scene.height));
-  bg.setAttribute("fill", scene.background);
-  svg.appendChild(bg);
-
   container.innerHTML = "";
   container.appendChild(svg);
 
@@ -72,9 +71,7 @@ export function mount(scene: SerializedScene, container: HTMLElement): MountResu
   const tl = gsap.timeline({ paused: true });
   const boilTargets: BoilTarget[] = [];
 
-  for (const node of scene.children) {
-    buildNode(node, svg, rc, tl, scene.seed, boilTargets);
-  }
+  buildSceneInto(scene, svg, rc, tl, boilTargets);
 
   return {
     svg,
@@ -88,6 +85,113 @@ export function mount(scene: SerializedScene, container: HTMLElement): MountResu
     },
     totalDuration: () => tl.duration(),
   };
+}
+
+/**
+ * A Film is several scenes cut together into one render — each scene keeps its own local
+ * timeline (built exactly like a standalone `mount`), nested into one master timeline via
+ * GSAP's timeline composition (`masterTl.add(childTl, offset)`) rather than by threading a
+ * time offset through every animation call. Scenes render at whatever size they declare;
+ * each gets scaled and centered into the film's own canvas (a static transform, not
+ * animated) so mismatched scene sizes still cut together cleanly.
+ */
+export function mountFilm(film: SerializedFilm, container: HTMLElement): MountResult {
+  const svg = document.createElementNS(SVG_NS, "svg");
+  svg.setAttribute("width", String(film.width));
+  svg.setAttribute("height", String(film.height));
+  svg.setAttribute("viewBox", `0 0 ${film.width} ${film.height}`);
+
+  const defs = document.createElementNS(SVG_NS, "defs");
+  svg.appendChild(defs);
+
+  const filmBg = document.createElementNS(SVG_NS, "rect");
+  filmBg.setAttribute("width", String(film.width));
+  filmBg.setAttribute("height", String(film.height));
+  filmBg.setAttribute("fill", film.background);
+  svg.appendChild(filmBg);
+
+  container.innerHTML = "";
+  container.appendChild(svg);
+
+  const rc = rough.svg(svg);
+  const masterTl = gsap.timeline({ paused: true });
+  const allBoilTargets: BoilTarget[] = [];
+
+  let cursor = 0;
+  let prevWrapper: SVGGElement | null = null;
+
+  film.entries.forEach((entry) => {
+    const { scene, transition, transitionDuration, hold } = entry;
+    const scale = Math.min(film.width / scene.width, film.height / scene.height);
+    const offsetX = (film.width - scene.width * scale) / 2;
+    const offsetY = (film.height - scene.height * scale) / 2;
+
+    const wrapper = document.createElementNS(SVG_NS, "g");
+    wrapper.setAttribute("transform", `translate(${offsetX}, ${offsetY}) scale(${scale})`);
+    gsap.set(wrapper, { opacity: 0 });
+    svg.appendChild(wrapper);
+
+    // Deliberately NOT `{ paused: true }`: a child timeline created paused stays inert
+    // even after being nested into masterTl via .add() below — its tweens never advance
+    // when the (paused) master seeks, so every shape in every scene after the first stays
+    // stuck at its initial state. The master alone being paused is what keeps this whole
+    // film seek-driven rather than auto-playing.
+    const sceneTl = gsap.timeline();
+    const sceneBoilTargets: BoilTarget[] = [];
+    buildSceneInto(scene, wrapper, rc, sceneTl, sceneBoilTargets);
+    allBoilTargets.push(...sceneBoilTargets);
+
+    const contentDuration = sceneTl.duration();
+    const isFade = transition === "fade";
+    const fadeDur = isFade ? Math.min(transitionDuration, Math.max(0.05, contentDuration / 2)) : 0;
+
+    // A fading scene starts slightly before the previous one's slot ends, so the two
+    // overlap and genuinely crossfade rather than each animating opacity in isolation.
+    const enterAt = Math.max(0, cursor - fadeDur);
+    masterTl.add(sceneTl, enterAt);
+
+    if (isFade) {
+      masterTl.fromTo(wrapper, { opacity: 0 }, { opacity: 1, duration: fadeDur, ease: "sine.inOut" }, enterAt);
+    } else {
+      masterTl.set(wrapper, { opacity: 1 }, enterAt);
+    }
+
+    if (prevWrapper) {
+      const hideAt = enterAt + fadeDur;
+      masterTl.set(prevWrapper, { opacity: 0 }, hideAt);
+    }
+
+    cursor = enterAt + contentDuration + hold;
+    prevWrapper = wrapper;
+  });
+
+  return {
+    svg,
+    timeline: masterTl,
+    seekTo: (t: number) => {
+      masterTl.seek(t, false);
+      applyBoilAt(allBoilTargets, t);
+    },
+    totalDuration: () => masterTl.duration(),
+  };
+}
+
+function buildSceneInto(
+  scene: SerializedScene,
+  container: SVGElement,
+  rc: ReturnType<typeof rough.svg>,
+  tl: gsap.core.Timeline,
+  boilTargets: BoilTarget[]
+): void {
+  const bg = document.createElementNS(SVG_NS, "rect");
+  bg.setAttribute("width", String(scene.width));
+  bg.setAttribute("height", String(scene.height));
+  bg.setAttribute("fill", scene.background);
+  container.appendChild(bg);
+
+  for (const node of scene.children) {
+    buildNode(node, container, rc, tl, scene.seed, boilTargets);
+  }
 }
 
 function applyBoilAt(boilTargets: BoilTarget[], t: number): void {
@@ -174,6 +278,28 @@ function applyInitialTransform(g: SVGGElement, node: SerializedNode): void {
   gsap.set(g, props);
 }
 
+/**
+ * A node's own authored points/children are already in absolute canvas coordinates (every
+ * example draws a shape directly where it should appear) — `transform.x/y` is a translate
+ * layered on top of that. So "absolute position" for moveTo means: find where this node's
+ * own geometry is centered, and set the transform so that center lands on (x, y) — not a
+ * bare assignment of transform.x/y, which just offsets from wherever the shape was drawn
+ * and reads exactly like moveBy the first time it's called (confirmed via a cold-agent
+ * scene that visibly moved a shape relative to itself while expecting an absolute landing
+ * spot).
+ */
+function computeNodeBBox(node: SerializedNode): BBox | null {
+  const boxes: BBox[] = [];
+  if (node.points && node.points.length) boxes.push(bboxOfPoints(node.points));
+  if (node.children) {
+    for (const child of node.children) {
+      const b = computeNodeBBox(child);
+      if (b) boxes.push(b);
+    }
+  }
+  return boxes.length ? unionBBox(boxes) : null;
+}
+
 function applyAnimations(
   g: SVGGElement,
   node: SerializedNode,
@@ -199,9 +325,13 @@ function applyAnimations(
         tl.to(g, { opacity: 1, duration, ease }, at);
         break;
       }
-      case "moveTo":
-        tl.to(g, { x: op.x, y: op.y, duration: op.duration ?? 0.6, ease: op.ease ?? "power2.out" }, at);
+      case "moveTo": {
+        const bbox = computeNodeBBox(node);
+        const refX = bbox ? (bbox.minX + bbox.maxX) / 2 : 0;
+        const refY = bbox ? (bbox.minY + bbox.maxY) / 2 : 0;
+        tl.to(g, { x: op.x - refX, y: op.y - refY, duration: op.duration ?? 0.6, ease: op.ease ?? "power2.out" }, at);
         break;
+      }
       case "moveBy":
         tl.to(g, { x: `+=${op.dx}`, y: `+=${op.dy}`, duration: op.duration ?? 0.6, ease: op.ease ?? "power2.out" }, at);
         break;

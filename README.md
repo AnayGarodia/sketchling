@@ -54,6 +54,8 @@ Boxy geometry with solid fills, hachure and cross-hatch texture, pure open-strok
 
 That last one — `jellyfish-drift.ts` — wasn't written by us. It was written by a fresh Claude agent given nothing but this README and the other six example files: no access to the renderer's source, no conversation history, no hints. It built and rendered on the first attempt, no fixes needed. That's the actual test of "an LLM can pick this up," not just a claim — see [`docs/launch-reel.mp4`](docs/launch-reel.mp4) for the full sequence.
 
+A second, larger cold test went further: [`story/`](story/) is a six-scene short — *Pip and the Sapling* — written the same way (README and `examples/` only, nothing else), with a real beginning, middle, and end, and one character drawn consistently across every scene. [`docs/pip-and-the-sapling.mp4`](docs/pip-and-the-sapling.mp4) is the result, kept exactly as written.
+
 ## Vocabulary
 
 - `sketch.stroke(points, style)` — an open freehand line
@@ -66,14 +68,29 @@ That last one — `jellyfish-drift.ts` — wasn't written by us. It was written 
   for (const [x, y] of positions) dots.add(sketch.blob(x, y, 18, style));
   dots.stagger(0.3, { duration: 0.5 }); // each child's drawOn starts 0.3s after the last
   ```
+- `sketch.text(str, x, y, style, {size?})` — hand-lettered text: lowercase a-z, digits, basic punctuation, no case distinction (uppercase input reuses the lowercase glyph). There's no outline-font renderer behind this, just a hand-plotted alphabet — enough for a caption or a title, not a general typesetting system. Returns a `Group` of per-letter strokes; animate with `.stagger()` for a letter-by-letter reveal.
+- `sketch.film({width, height, background})` — cuts several independent `Scene`s together into one render (see Film below).
 
 **Style:** `color`, `weight` (`"light" | "confident" | "bold"` or a number), `looseness` (0–1, precise → wild — perturbs both the shape's outline and the render jitter), `energy` (`"calm" | "quick" | "frantic"`), `smooth` (spline through points for organic shapes vs. straight edges for boxes/wedges — default `true`), `fill` (`{ color, style: "hachure" | "cross-hatch" | "solid" | "zigzag" | "dots", density, angle }`).
 
 **Animation:** every node — `.drawOn({at, duration, ease})` (the line draws itself; `duration` is optional — omitted, it's derived from the path's own length, so a long outline doesn't flash on screen as fast as a short one), `.appear(...)` (fade in), `.moveTo(x, y, ...)`, `.moveBy(dx, dy, ...)`, `.scaleTo(s, ...)`, `.rotateTo(deg, ...)`, `.fadeTo(opacity, ...)`. `at` is an absolute timeline position in seconds, shared across the whole scene — the same vocabulary Manim's `self.play` gives you, but for a browser timeline instead of a math diagram. `.pivotAt(x, y)` anchors `rotateTo`/`scaleTo` at an absolute canvas point instead of the shape's own center — a raised arm should swing from the shoulder, not spin around its own midpoint (see `waving-character.ts`).
 
-A single scene animates only what it's told to — nothing loops or idles on its own. `.drawOn()` currently only reveals `stroke`/`blob`/`loop` nodes; calling it on a `Group` is a no-op, since a group has no single path to trace (mask each child individually instead).
+`moveTo(x, y)` is a true absolute position — the node's own geometric center lands on canvas `(x, y)`, regardless of where it currently sits, even after earlier `moveBy`/`moveTo` calls. `moveBy(dx, dy)` is relative to wherever the node currently is.
 
-A hand-drawn scene shouldn't go still the moment it's drawn. Chain motion onto a node after its `drawOn` window closes — a limb that rotates (`waving-character.ts`), a group that launches off-frame (`rocket-liftoff.ts`), a line that drifts and fades (`coffee-steam.ts`). Every already-drawn line also re-jitters a few times a second on its own (see "line boil" below) even with no animation chained onto it at all — a static scene still reads as hand-drawn, not laser-cut.
+A single scene animates only what it's told to — nothing loops or idles on its own. `.drawOn()` only reveals `stroke`/`blob`/`loop` nodes and the groups `sketch.text()` builds; calling it on a plain `Group` is a no-op, since a group has no single path to trace (mask each child individually, or use `.stagger()`, instead).
+
+A hand-drawn scene shouldn't go still the moment it's drawn. Chain motion onto a node after its `drawOn` window closes — a limb that rotates (`waving-character.ts`), a group that launches off-frame (`rocket-liftoff.ts`), a line that drifts and fades (`coffee-steam.ts`). Every already-drawn line also re-jitters a few times a second on its own (see "line boil" below) even with no animation chained onto it at all — a static scene still reads as hand-drawn, not laser-cut. None of this is required, though — a still composition with no post-draw motion at all is a completely normal thing to build.
+
+## Film — cutting scenes together
+
+```ts
+const film = sketch.film({ width: 640, height: 480, background: "#111" });
+film.addScene(sceneA, { transition: "cut", hold: 0.4 });
+film.addScene(sceneB, { transition: "fade", transitionDuration: 0.5, hold: 0.4 });
+export default film; // same CLI, same flags, same lint — a Film renders exactly like a Scene
+```
+
+Each scene keeps its own size, background, and animation, entirely independent of the others — `Film` scales and centers each one into its own shared canvas (letterboxing whatever doesn't match) and sequences them with a `"cut"` (instant, default) or `"fade"` (crossfade over `transitionDuration`) between each. `hold` is how long a scene sits on its settled frame before the next takes over. There's no shared runtime state between scenes — each one draws its own world from scratch — so a recurring character across a longer sequence needs its own shared builder function reused across scene files (see `story/_shared.ts`).
 
 ## Self-verification, without burning tokens
 
@@ -91,6 +108,8 @@ sketchling render scene.ts --video out.mp4 --fps 24      # the whole timeline, a
 sketchling render scene.ts --serve                       # open it live in a real browser
 ```
 
+`--video` runs about a second longer than the scene's own timeline — it holds on the settled end frame instead of cutting on the exact last drawn frame.
+
 ## How it works
 
 A scene graph (`Scene` → `Stroke`/`Blob`/`Group`, styled and timed) is built by running your `scene.ts` in Node — the core library has no DOM dependency, so this is cheap and lets the Tier 0 linter run before any rendering happens. The serialized scene is then handed to a headless Chromium page, where [rough.js](https://roughjs.com) draws it as SVG and [GSAP](https://gsap.com) drives the timeline.
@@ -105,7 +124,9 @@ A scene graph (`Scene` → `Stroke`/`Blob`/`Group`, styled and timed) is built b
 
 Early and opinionated by design: v1 targets one aesthetic (flat, hand-drawn line illustration, the Notion/Anthropic register) rather than being a general illustration engine. The bet is that a small, well-designed vocabulary in one register beats a sprawling API that does everything adequately. Broader styles come once this one is genuinely good.
 
-Not yet built, roughly in order: a Claude Code skill that teaches the vocabulary directly (no README round-trip needed); more shape helpers (`sketch.arrow()`, `sketch.speechBubble()`, etc.) as thin geometric compositions of the existing primitives, not a curated asset library — that's a deliberate non-goal, see "Why" above; camera-level composition (pan/zoom, multi-scene cuts) for longer sequences.
+If you're using [Claude Code](https://claude.com/claude-code) inside this repo, `.claude/skills/sketchling/` is available and teaches the vocabulary directly — no README round-trip needed.
+
+Not yet built: more shape helpers (`sketch.arrow()`, `sketch.speechBubble()`, etc.) as thin geometric compositions of the existing primitives, not a curated asset library — that's a deliberate non-goal, see "Why" above; shape-to-shape morphing (GSAP's MorphSVGPlugin is already an installed dependency, unused so far).
 
 ## Contributing
 
