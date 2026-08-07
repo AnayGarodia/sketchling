@@ -4,6 +4,12 @@ A hand-drawn illustration and animation language for LLMs — Manim gave languag
 
 ![keyhole laptop, drawn and rendered by sketchling](docs/keyhole-laptop.png)
 
+| | | |
+|---|---|---|
+| ![potted plant](docs/potted-plant.png) | ![doodle flourish](docs/doodle-flourish.png) | ![waving character](docs/waving-character.png) |
+
+Four scenes, four different corners of the vocabulary: boxy geometry with solid fills, hachure and cross-hatch texture, pure open-stroke linework with no fills at all, and an organic blob-built character. `examples/` has the source for all four — each also renders as an animation (`--video`), not just a still.
+
 ## Why
 
 LLMs write code fluently but draw badly — ask one to hand-code an SVG path for a human figure and you get something crude. Two design choices make this tractable anyway:
