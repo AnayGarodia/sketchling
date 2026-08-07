@@ -29,6 +29,7 @@ export interface Transform {
   scale: number;
   rotation: number;
   opacity: number;
+  pivot?: Point; // absolute canvas-space anchor for rotate/scale (default: the shape's own center)
 }
 
 export interface TimingOpts {

@@ -1,4 +1,4 @@
-import type { AnimOp, NodeStyle, TimingOpts, Transform } from "./types.js";
+import type { AnimOp, NodeStyle, Point, TimingOpts, Transform } from "./types.js";
 import { hashSeed } from "./geometry.js";
 
 let autoId = 0;
@@ -25,6 +25,13 @@ export abstract class SketchNode {
 
   withSeed(seed: number): this {
     this.seed = seed;
+    return this;
+  }
+
+  /** Anchors rotateTo/scaleTo at an absolute canvas point instead of the shape's own
+   * center — e.g. a raised arm should swing from the shoulder, not its own midpoint. */
+  pivotAt(x: number, y: number): this {
+    this.transform.pivot = [x, y] as Point;
     return this;
   }
 

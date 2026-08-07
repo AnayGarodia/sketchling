@@ -183,14 +183,18 @@ async function captureFrame(page: Page, cdp: CDPSession, at: number, outPath: st
   if (process.env.SKETCHLING_DEBUG) console.error(`[debug] screenshot done`);
 }
 
+const HOLD_SECONDS = 1;
+
 async function renderVideo(page: Page, cdp: CDPSession, outPath: string, fps: number, workdir: string): Promise<void> {
   const totalDuration: number = await page.evaluate(() => (window as any).__sketchling.totalDuration());
   const framesDir = path.join(workdir, "frames");
   mkdirSync(framesDir, { recursive: true });
 
-  const frameCount = Math.max(1, Math.ceil(totalDuration * fps));
+  // Cutting the video on the exact last drawn frame reads as an abrupt stop — hold the
+  // settled state for a beat so the ending registers before it cuts.
+  const frameCount = Math.max(1, Math.ceil((totalDuration + HOLD_SECONDS) * fps));
   for (let i = 0; i < frameCount; i++) {
-    const t = i / fps;
+    const t = Math.min(i / fps, totalDuration + HOLD_SECONDS);
     const framePath = path.join(framesDir, `frame-${String(i).padStart(6, "0")}.png`);
     await withTimeout(captureFrame(page, cdp, t, framePath, false), FRAME_TIMEOUT_MS, `capture frame ${i}`);
     if (i % 10 === 0 || i === frameCount - 1) console.log(`frame ${i + 1}/${frameCount}`);

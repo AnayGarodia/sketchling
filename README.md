@@ -7,8 +7,9 @@ A hand-drawn illustration and animation language for LLMs — Manim gave languag
 | | | |
 |---|---|---|
 | ![potted plant](docs/potted-plant.png) | ![doodle flourish](docs/doodle-flourish.png) | ![waving character](docs/waving-character.png) |
+| ![rocket liftoff](docs/rocket-liftoff.png) | ![coffee steam](docs/coffee-steam.png) | |
 
-Four scenes, four different corners of the vocabulary: boxy geometry with solid fills, hachure and cross-hatch texture, pure open-stroke linework with no fills at all, and an organic blob-built character. `examples/` has the source for all four — each also renders as an animation (`--video`), not just a still.
+Six scenes, different corners of the vocabulary: boxy geometry with solid fills, hachure and cross-hatch texture, pure open-stroke linework with no fills at all, an organic blob-built character that waves once it's drawn, a rocket that launches off the top of the frame leaving its exhaust behind, and rising coffee steam that drifts and fades after it draws. `examples/` has the source for all six — each also renders as an animation (`--video`), not just a still, and the motion is the point: nothing in these scenes goes still the instant it's drawn.
 
 ## Why
 
@@ -48,7 +49,11 @@ sketchling render scene.ts --out preview.png
 
 **Style:** `color`, `weight` (`"light" | "confident" | "bold"` or a number), `looseness` (0–1, precise → wild — perturbs both the shape's outline and the render jitter), `energy` (`"calm" | "quick" | "frantic"`), `smooth` (spline through points for organic shapes vs. straight edges for boxes/wedges — default `true`), `fill` (`{ color, style: "hachure" | "cross-hatch" | "solid" | "zigzag" | "dots", density, angle }`).
 
-**Animation:** every node — `.drawOn({at, duration, ease})` (the line draws itself), `.appear(...)` (fade in), `.moveTo(x, y, ...)`, `.moveBy(dx, dy, ...)`, `.scaleTo(s, ...)`, `.rotateTo(deg, ...)`, `.fadeTo(opacity, ...)`. `at` is an absolute timeline position in seconds, shared across the whole scene — the same vocabulary Manim's `self.play` gives you, but for a browser timeline instead of a math diagram.
+**Animation:** every node — `.drawOn({at, duration, ease})` (the line draws itself; `duration` is optional — omitted, it's derived from the path's own length, so a long outline doesn't flash on screen a beat after a short one), `.appear(...)` (fade in), `.moveTo(x, y, ...)`, `.moveBy(dx, dy, ...)`, `.scaleTo(s, ...)`, `.rotateTo(deg, ...)`, `.fadeTo(opacity, ...)`. `at` is an absolute timeline position in seconds, shared across the whole scene — the same vocabulary Manim's `self.play` gives you, but for a browser timeline instead of a math diagram. `.pivotAt(x, y)` anchors `rotateTo`/`scaleTo` at an absolute canvas point instead of the shape's own center — a raised arm should swing from the shoulder, not spin around its own midpoint (see `waving-character.ts`).
+
+A single scene animates only what it's told to — nothing loops or idles on its own. `.drawOn()` currently only reveals `stroke`/`blob`/`loop` nodes; calling it on a `Group` is a no-op, since a group has no single path to trace (mask each child individually instead).
+
+A hand-drawn scene shouldn't go still the moment it's drawn. Chain motion onto a node after its `drawOn` window closes — a limb that rotates (`waving-character.ts`), a group that launches off-frame (`rocket-liftoff.ts`), a line that drifts and fades (`coffee-steam.ts`). Every already-drawn line also re-jitters a few times a second on its own (see "line boil" below) even with no animation chained onto it at all — a static scene still reads as hand-drawn, not laser-cut.
 
 ## Self-verification, without burning tokens
 
@@ -71,6 +76,10 @@ sketchling render scene.ts --serve                       # open it live in a rea
 A scene graph (`Scene` → `Stroke`/`Blob`/`Group`, styled and timed) is built by running your `scene.ts` in Node — the core library has no DOM dependency, so this is cheap and lets the Tier 0 linter run before any rendering happens. The serialized scene is then handed to a headless Chromium page, where [rough.js](https://roughjs.com) draws it as SVG and [GSAP](https://gsap.com) drives the timeline.
 
 `drawOn` does **not** dash-reveal rough.js's own output path — rough.js authors its `d` as several short overlapping passes for sketchy texture, not one sequential sweep, so a direct dash-reveal doesn't trace in visual order (a rectangle can render fully closed a fifth of the way through its draw). Instead, each shape is revealed through an SVG mask built from the *clean* geometric path: a stroked copy of it drives the dash-reveal (the pen trace), and for closed shapes a filled copy fades in behind it once the trace is mostly through (the interior flood, like ink catching up to a pen) — together they reveal the real rendered artwork, hachure fills included, in the order a hand would actually draw it. A small dot rides the trace's leading edge as the pen tip. The pace itself uses GSAP's `RoughEase` rather than linear or classically-eased timing, so the draw hesitates and quickens unevenly instead of moving at a constant or smoothly-accelerating rate — both of which read as mechanical.
+
+**Line boil.** A hand never traces the exact same wobble twice — a line that stops moving the instant it lands reads as dead, no matter how well it got there. Every stroke is actually rendered two or three times, each with a different rough.js seed, stacked in the same spot; visibility cycles between them a few times a second for as long as the shape is on screen, drawn or not. It's a small, continuous re-jitter — never a jump — running for the life of the scene, including during the end-of-video hold.
+
+**Pacing.** One pen draws at a time: examples schedule each shape's `drawOn` window after the previous one finishes, with a short gap standing in for a pen lift, rather than starting several shapes at once. A scene *can* run shapes concurrently (nothing enforces single-pen scheduling), but two things drawing themselves simultaneously reads as two hands, not one — schedule sequentially, with gaps, unless you deliberately want that effect.
 
 ## Status
 

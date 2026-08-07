@@ -22,7 +22,7 @@ const pot = sketch.loop(
     fill: { color: terracotta, style: "hachure", density: 0.55, angle: 35 },
   }
 );
-scene.add(pot).drawOn({ at: 0, duration: 0.6 });
+scene.add(pot).drawOn({ at: 0, duration: 1.4 });
 
 const rim = sketch.loop(
   [
@@ -40,7 +40,7 @@ const rim = sketch.loop(
     fill: { color: terracotta, style: "cross-hatch", density: 0.7, angle: 20 },
   }
 );
-scene.add(rim).drawOn({ at: 0.4, duration: 0.35 });
+scene.add(rim).drawOn({ at: 1.7, duration: 0.7 });
 
 const stem = sketch.stroke(
   [
@@ -50,7 +50,7 @@ const stem = sketch.stroke(
   ],
   { color: ink, weight: "confident", looseness: 0.25, energy: "calm", smooth: true }
 );
-scene.add(stem).drawOn({ at: 0.55, duration: 0.4 });
+scene.add(stem).drawOn({ at: 2.7, duration: 0.8 });
 
 const leafLeft = sketch.loop(
   [
@@ -68,7 +68,7 @@ const leafLeft = sketch.loop(
     fill: { color: leafGreen, style: "hachure", density: 0.6, angle: 60 },
   }
 );
-scene.add(leafLeft).drawOn({ at: 0.75, duration: 0.45 });
+scene.add(leafLeft).drawOn({ at: 3.8, duration: 0.9 });
 
 const leafRight = sketch.loop(
   [
@@ -86,7 +86,7 @@ const leafRight = sketch.loop(
     fill: { color: leafGreen, style: "hachure", density: 0.6, angle: 120 },
   }
 );
-scene.add(leafRight).drawOn({ at: 0.95, duration: 0.45 });
+scene.add(leafRight).drawOn({ at: 4.95, duration: 0.9 });
 
 const leafTop = sketch.loop(
   [
@@ -104,6 +104,6 @@ const leafTop = sketch.loop(
     fill: { color: leafGreen, style: "solid" },
   }
 );
-scene.add(leafTop).drawOn({ at: 1.25, duration: 0.4 });
+scene.add(leafTop).drawOn({ at: 6.1, duration: 0.8 });
 
 export default scene;
