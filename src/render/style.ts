@@ -22,7 +22,7 @@ export function roughOptionsFor(
   closed: boolean,
   look: RenderLook = "ink"
 ): Record<string, unknown> {
-  const crisp = look === "flat" || look === "watercolor";
+  const crisp = look === "flat" || look === "watercolor" || look === "pixel";
   const clay = look === "clay";
   const looseness = style.looseness ?? 0.3;
   const energyMult = ENERGY_MULT[style.energy ?? "quick"] ?? 1;

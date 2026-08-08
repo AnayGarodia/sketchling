@@ -80,8 +80,10 @@ async function runRender(sceneFile: string, opts: RenderOpts): Promise<void> {
       );
       const cdp = await page.context().newCDPSession(page);
 
+      const pixelPost = serialized.kind === "scene" && serialized.look === "pixel" ? pixelateBuffer : undefined;
+
       if (opts.video) {
-        await renderVideo(page, cdp, opts.video, Number(opts.fps), workdir);
+        await renderVideo(page, cdp, opts.video, Number(opts.fps), workdir, pixelPost);
       } else {
         const totalDuration: number = await withTimeout(
           page.evaluate(() => (window as any).__sketchling.totalDuration()),
@@ -90,7 +92,7 @@ async function runRender(sceneFile: string, opts: RenderOpts): Promise<void> {
         );
         const at = opts.at !== undefined ? Number(opts.at) : totalDuration;
         await withTimeout(
-          captureFrame(page, cdp, at, path.resolve(process.cwd(), opts.out), opts.crop),
+          captureFrame(page, cdp, at, path.resolve(process.cwd(), opts.out), opts.crop, pixelPost),
           FRAME_TIMEOUT_MS,
           "capture frame"
         );
@@ -177,7 +179,16 @@ async function buildHarness(serialized: Renderable, workdir: string): Promise<st
  * tries to serialize the whole timeline (tweens, DOM targets, ticker links) over CDP — that never
  * completes. Block body + no return avoids serializing anything back at all.
  */
-async function captureFrame(page: Page, cdp: CDPSession, at: number, outPath: string, crop: boolean): Promise<void> {
+type FramePostProcess = (png: Buffer) => Promise<Buffer>;
+
+async function captureFrame(
+  page: Page,
+  cdp: CDPSession,
+  at: number,
+  outPath: string,
+  crop: boolean,
+  postProcess?: FramePostProcess
+): Promise<void> {
   if (process.env.SKETCHLING_DEBUG) console.error(`[debug] seeking to ${at}`);
   await page.evaluate((t) => {
     (window as any).__sketchling.seekTo(t);
@@ -192,13 +203,64 @@ async function captureFrame(page: Page, cdp: CDPSession, at: number, outPath: st
       })
     : undefined;
   const { data } = await cdp.send("Page.captureScreenshot", { format: "png", clip });
-  writeFileSync(outPath, Buffer.from(data, "base64"));
+  let png: Buffer = Buffer.from(data, "base64");
+  if (postProcess) png = await postProcess(png);
+  writeFileSync(outPath, png);
   if (process.env.SKETCHLING_DEBUG) console.error(`[debug] screenshot done`);
+}
+
+// Pixel-cell size, in output pixels, for the "pixel" look's post-process — every cell this
+// wide/tall in the final frame is one flat-colored block, the same size regardless of the
+// scene's own canvas dimensions.
+const PIXEL_CELL = 8;
+
+// Reads a PNG's width/height straight out of its IHDR chunk (bytes 16-23, big-endian) —
+// avoids pulling in an image-decoding dependency just to answer "how big is this buffer."
+function pngDimensions(png: Buffer): { width: number; height: number } {
+  return { width: png.readUInt32BE(16), height: png.readUInt32BE(20) };
+}
+
+// Downsamples (area-averaged, so a cell reflects everything under it) then upsamples
+// (nearest-neighbor, so cell edges stay hard) through ffmpeg — the same external binary
+// --video already requires, piped in-memory rather than through temp files since this runs
+// once per captured frame.
+async function pixelateBuffer(png: Buffer): Promise<Buffer> {
+  const { width, height } = pngDimensions(png);
+  const downW = Math.max(1, Math.round(width / PIXEL_CELL));
+  const downH = Math.max(1, Math.round(height / PIXEL_CELL));
+  const vf = `scale=${downW}:${downH}:flags=area,scale=${width}:${height}:flags=neighbor`;
+  return runFfmpegBuffer(
+    ["-loglevel", "error", "-f", "image2pipe", "-i", "pipe:0", "-vf", vf, "-vframes", "1", "-c:v", "png", "-f", "image2pipe", "pipe:1"],
+    png
+  );
+}
+
+function runFfmpegBuffer(args: string[], input: Buffer): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const proc = spawn("ffmpeg", args, { stdio: ["pipe", "pipe", "inherit"] });
+    const chunks: Buffer[] = [];
+    proc.stdout.on("data", (c) => chunks.push(c));
+    proc.on("error", (err) => {
+      reject(new Error(`ffmpeg not found or failed to start: ${err.message}. Install it with \`brew install ffmpeg\`.`));
+    });
+    proc.on("exit", (code) => {
+      if (code === 0) resolve(Buffer.concat(chunks));
+      else reject(new Error(`ffmpeg exited with code ${code}`));
+    });
+    proc.stdin.end(input);
+  });
 }
 
 const HOLD_SECONDS = 1;
 
-async function renderVideo(page: Page, cdp: CDPSession, outPath: string, fps: number, workdir: string): Promise<void> {
+async function renderVideo(
+  page: Page,
+  cdp: CDPSession,
+  outPath: string,
+  fps: number,
+  workdir: string,
+  postProcess?: FramePostProcess
+): Promise<void> {
   const totalDuration: number = await page.evaluate(() => (window as any).__sketchling.totalDuration());
   const framesDir = path.join(workdir, "frames");
   mkdirSync(framesDir, { recursive: true });
@@ -209,7 +271,7 @@ async function renderVideo(page: Page, cdp: CDPSession, outPath: string, fps: nu
   for (let i = 0; i < frameCount; i++) {
     const t = Math.min(i / fps, totalDuration + HOLD_SECONDS);
     const framePath = path.join(framesDir, `frame-${String(i).padStart(6, "0")}.png`);
-    await withTimeout(captureFrame(page, cdp, t, framePath, false), FRAME_TIMEOUT_MS, `capture frame ${i}`);
+    await withTimeout(captureFrame(page, cdp, t, framePath, false, postProcess), FRAME_TIMEOUT_MS, `capture frame ${i}`);
     if (i % 10 === 0 || i === frameCount - 1) console.log(`frame ${i + 1}/${frameCount}`);
   }
 

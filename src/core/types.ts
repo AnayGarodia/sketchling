@@ -133,7 +133,11 @@ export type SceneBackground = string | { stops: GradientStop[]; direction?: "hor
 //   real directional + ambient lighting and cast shadows on mesh3d nodes specifically.
 //   Only mesh3d nodes have a 3D representation; every 2D-only node (stroke, blob, limb,
 //   text) in the same scene simply doesn't appear in a lit3d render. See renderer3d.ts.
-export type RenderLook = "ink" | "flat" | "clay" | "watercolor" | "lit3d";
+// - "pixel": "flat"'s crisp geometry, with every captured frame additionally downsampled
+//   and nearest-neighbor upscaled back to size (a raster post-process applied in cli.ts
+//   after the browser screenshot, not a DOM/SVG-level change) — a blocky, low-res game-art
+//   look. Requires ffmpeg on PATH, same as --video already does.
+export type RenderLook = "ink" | "flat" | "clay" | "watercolor" | "lit3d" | "pixel";
 
 export interface SerializedScene {
   kind: "scene";
