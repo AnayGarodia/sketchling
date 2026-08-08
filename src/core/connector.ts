@@ -16,6 +16,12 @@ import type { NodeStyle, Point } from "./types.js";
  * changes every frame) and no line-boil (a connector already fully rebuilds its path each
  * seek, so there's nothing for boil's stacked-variant trick to add) — `fadeTo`/`moveTo`/etc.
  * on the connector's own transform still work normally, same as any other node.
+ *
+ * Won't track a `target` whose motion comes from an animated ancestor group (e.g. a node
+ * inside a `sketch.walk`-driven character group) — the "live resolved position" read is each
+ * node's own local offset only, so a target that's moving purely because its parent group is
+ * moving reads as stationary. Give the target its own tweens (a `moveTo`/`springTo` on the
+ * node itself, not just on an ancestor) if it needs to be connector-tracked.
  */
 export class Connector extends SketchNode {
   readonly type = "connector" as const;

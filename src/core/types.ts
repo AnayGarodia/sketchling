@@ -65,7 +65,9 @@ export type AnimOp =
   // everywhere else in this renderer) plus (offsetX, offsetY), with damped-spring lag
   // and overshoot, from `at` through the rest of the timeline. Precomputed once per scene
   // build (see renderer.ts's buildSprings), not evaluated live, so seeking anywhere stays
-  // exact and repeatable.
+  // exact and repeatable. Practical consequence: a driver whose only motion comes from an
+  // animated ancestor group (e.g. a body inside a sketch.walk character) reads as
+  // stationary — give the driver its own tween if it needs to spring-drive an accessory.
   | { kind: "springTo"; driverId: string; offsetX: number; offsetY: number; stiffness: number; damping: number; at: number };
 
 // A scene's own viewport, animated independently of any node — pans/zooms the whole
