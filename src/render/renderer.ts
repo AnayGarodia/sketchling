@@ -3,13 +3,13 @@ import gsap from "gsap";
 import { EasePack, RoughEase } from "gsap/EasePack";
 import { MorphSVGPlugin } from "gsap/MorphSVGPlugin";
 import { MotionPathPlugin } from "gsap/MotionPathPlugin";
-import type { AnimOp, CameraOp, NodeStyle, RenderLook, Renderable, SerializedFilm, SerializedNode, SerializedScene } from "../core/types.js";
+import type { AnimOp, CameraOp, NodeStyle, RenderLook, Renderable, SceneBackground, SerializedFilm, SerializedNode, SerializedScene } from "../core/types.js";
 import { bboxOfPoints, pathFromPoints, unionBBox, seededRandom, type BBox } from "../core/geometry.js";
 import { rotatePoint, project, faceNormal, normalize, subtract, dot, shadeHex, type Vec3 } from "../core/geometry3d.js";
 import { solveTwoBoneIK } from "../core/ik.js";
 import { mountLit3D } from "./renderer3d.js";
 import type { Point } from "../core/types.js";
-import { roughOptionsFor, strokeWidthOf } from "./style.js";
+import { roughOptionsFor, strokeWidthOf, flatColorOf, effectiveFillStyle } from "./style.js";
 
 gsap.registerPlugin(EasePack, MorphSVGPlugin, MotionPathPlugin);
 
@@ -453,6 +453,39 @@ function applyBackground(scene: SerializedScene, layer: SVGGElement): void {
   }
 
   layer.appendChild(bg);
+}
+
+/** Builds a per-shape SVG linearGradient sized to the shape's own bounding box
+ * (`gradientUnits="objectBoundingBox"`, the SVG default — 0..1 fractional coordinates
+ * across whatever bbox the shape it's applied to actually has, so this needs no knowledge
+ * of the shape's real pixel size) and returns its url() reference — the volumetric cue a
+ * flat fill has none of: a light-to-shadow gradient across one form instead of a uniform
+ * flat color. Same {stops, direction} shape scene.background already takes; unlike the
+ * background's own gradient, this one is real per-shape geometry, not a backdrop rect, so
+ * it uses objectBoundingBox instead of userSpaceOnUse. */
+function buildShapeGradient(defs: SVGDefsElement | null | undefined, spec: Exclude<SceneBackground, string>): string {
+  const gradId = `sk-fill-grad-${maskIdCounter++}`;
+  const grad = document.createElementNS(SVG_NS, "linearGradient");
+  grad.setAttribute("id", gradId);
+  if (spec.direction === "horizontal") {
+    grad.setAttribute("x1", "0");
+    grad.setAttribute("y1", "0");
+    grad.setAttribute("x2", "1");
+    grad.setAttribute("y2", "0");
+  } else {
+    grad.setAttribute("x1", "0");
+    grad.setAttribute("y1", "0");
+    grad.setAttribute("x2", "0");
+    grad.setAttribute("y2", "1");
+  }
+  for (const stop of spec.stops) {
+    const s = document.createElementNS(SVG_NS, "stop");
+    s.setAttribute("offset", `${stop.offset * 100}%`);
+    s.setAttribute("stop-color", stop.color);
+    grad.appendChild(s);
+  }
+  defs?.appendChild(grad);
+  return `url(#${gradId})`;
 }
 
 function findSerializedNodeById(nodes: SerializedNode[], id: string): SerializedNode | null {
@@ -956,6 +989,23 @@ function buildNode(
     const hasMorph = node.animations.some((a) => a.kind === "morphTo");
     const variantCount = hasMorph || currentLook !== "ink" ? 1 : BOIL_VARIANTS;
 
+    // A gradient fill.color only renders as a real gradient when the effective fillStyle
+    // is "solid" (hachure/cross-hatch/zigzag/dots are procedural line strokes with no
+    // continuous area to gradient across — roughOptionsFor already degrades those to the
+    // gradient's first stop on its own). Built once, shared across every boil variant
+    // below, not rebuilt per variant.
+    let styleForFill = node.style;
+    if (
+      node.closed &&
+      node.style?.fill &&
+      typeof node.style.fill.color !== "string" &&
+      effectiveFillStyle(node.style, currentLook) === "solid"
+    ) {
+      const defs = g.ownerSVGElement?.querySelector("defs");
+      const gradUrl = buildShapeGradient(defs, node.style.fill.color);
+      styleForFill = { ...node.style, fill: { ...node.style.fill, color: gradUrl } };
+    }
+
     // Wrapped in its own group so drawOn can mask the whole rendered shape (stroke pass(es)
     // AND fill/hachure alike) as one unit, rather than needing to classify rough.js's
     // sub-elements by stroke vs. fill — which breaks for hachure/cross-hatch fills, since
@@ -963,7 +1013,7 @@ function buildNode(
     const artGroup = document.createElementNS(SVG_NS, "g");
     const variants: SVGGElement[] = [];
     for (let i = 0; i < variantCount; i++) {
-      const opts = roughOptionsFor(node.style ?? {}, baseSeed + i * 7919, !!node.closed, currentLook);
+      const opts = roughOptionsFor(styleForFill ?? {}, baseSeed + i * 7919, !!node.closed, currentLook);
       const rendered = rc.path(d, opts);
       const variantWrap = document.createElementNS(SVG_NS, "g");
       variantWrap.appendChild(rendered);
@@ -1018,7 +1068,7 @@ function buildMesh3D(
   const lightDirRaw = node.mesh3dLightDir ?? [-0.5, -0.7, -0.4];
   const lightDir = normalize({ x: lightDirRaw[0], y: lightDirRaw[1], z: lightDirRaw[2] });
   const baseSeed = sceneSeed ^ node.seed;
-  const baseColor = node.style?.fill?.color ?? node.style?.color ?? "#8a8a8a";
+  const baseColor = flatColorOf(node.style?.fill?.color, node.style?.color ?? "#8a8a8a");
   const strokeColor = node.style?.color ?? "#181511";
   const strokeWidthPx = strokeWidthOf(node.style?.weight);
 
@@ -1129,7 +1179,7 @@ function buildLimb(
   const len2 = node.limbLen2 ?? 40;
   const bend = node.limbBend ?? 1;
   const capRadius = node.limbCapRadius ?? 0;
-  const capColor = node.limbCapColor ?? node.style?.fill?.color ?? node.style?.color ?? "#181511";
+  const capColor = node.limbCapColor ?? flatColorOf(node.style?.fill?.color, node.style?.color ?? "#181511");
   const baseSeed = sceneSeed ^ node.seed;
   // A joint should read as an actual bend, not a spline blend erasing it — smooth defaults
   // false here regardless of the general stroke default (true), unless a scene explicitly

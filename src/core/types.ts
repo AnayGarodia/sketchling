@@ -14,7 +14,15 @@ export interface StrokeStyle {
 }
 
 export interface FillDef {
-  color: string;
+  // A flat color renders exactly as before. A gradient spec ({stops, direction}, the same
+  // shape scene.background already takes) renders as one real per-shape SVG
+  // linearGradient, sized to the shape's own bounding box — a light-to-shadow gradient on
+  // a single form (a landform lit from one side, a body with a shaded underside) instead
+  // of a uniform flat fill, the volumetric cue a flat-shaded "ink"/"flat" shape otherwise
+  // has none of. Only meaningful with fillStyle "solid" — hachure/cross-hatch/zigzag/dots
+  // are procedural line strokes with no continuous area to gradient across, so a gradient
+  // color on those fill styles just resolves to its first stop, same as before.
+  color: SceneBackground;
   style?: FillStyle;
   density?: number; // 0..1, maps to hachure gap
   angle?: number; // degrees

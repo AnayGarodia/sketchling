@@ -54,6 +54,8 @@ All points are `[x, y]` pairs in the scene's own absolute canvas coordinates —
 
 `color`, `weight` (`"light" | "confident" | "bold"` or a number), `looseness` (0-1, precise → wild), `energy` (`"calm" | "quick" | "frantic"`), `smooth` (spline vs. straight edges — default `true`, use `false` for boxes/wedges needing sharp corners), `fill` (`{ color, style: "hachure" | "cross-hatch" | "solid" | "zigzag" | "dots", density, angle }`).
 
+`fill.color` takes a gradient too — the same `{ stops: [{offset, color}], direction? }` shape `scene.background` already takes — for a real per-shape SVG gradient (`objectBoundingBox`-scaled, no need to know the shape's own pixel size) instead of a flat color: a landform lit from one side and falling into shadow, a body with a shaded underside, real volumetric shading on one form rather than a uniform fill. Only renders as an actual gradient with `fill.style: "solid"` (or under a look that forces solid — `"flat"`/`"watercolor"`/`"pixel"`/`"clay"`) — `"hachure"`/`"cross-hatch"`/`"zigzag"`/`"dots"` are procedural line strokes with no continuous area to gradient across, so a gradient color under those degrades to its first stop instead. Same for the SVG-sketched 3D mesh pipeline and a limb's cap color — no per-shape gradient concept there either, so those also just take the first stop. See `examples/gallery/gradient-shading.ts`.
+
 ### Animation
 
 Every node: `.drawOn({at, duration, ease})`, `.appear(...)`, `.moveTo(x, y, ...)`, `.moveBy(dx, dy, ...)`, `.scaleTo(s, ...)`, `.rotateTo(deg, ...)`, `.fadeTo(opacity, ...)`. `at` is an absolute position (seconds) on the scene's shared timeline.

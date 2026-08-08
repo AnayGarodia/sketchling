@@ -2,6 +2,7 @@ import * as THREE from "three";
 import gsap from "gsap";
 import type { Point3, SerializedNode, SerializedScene } from "../core/types.js";
 import type { MountResult } from "./renderer.js";
+import { flatColorOf } from "./style.js";
 
 /**
  * A second, genuinely separate rendering pipeline (WebGL/Three.js, not SVG/rough.js) for
@@ -190,7 +191,7 @@ function buildToonOutline(geometry: THREE.BufferGeometry): THREE.Mesh {
 function buildMeshObject(node: SerializedNode, toonGradientMap: THREE.DataTexture | null): THREE.Mesh {
   const vertices = node.mesh3dVertices ?? [];
   const faces = node.mesh3dFaces ?? [];
-  const baseColorHex = node.style?.fill?.color ?? node.style?.color ?? "#8a8a8a";
+  const baseColorHex = flatColorOf(node.style?.fill?.color, node.style?.color ?? "#8a8a8a");
   const baseColor = new THREE.Color(baseColorHex);
 
   const positions: number[] = [];

@@ -1,4 +1,15 @@
-import type { NodeStyle, RenderLook, Weight } from "../core/types.js";
+import type { NodeStyle, RenderLook, SceneBackground, Weight } from "../core/types.js";
+
+/** Collapses a fill color that might be a gradient spec down to one flat string — for
+ * pipelines that only ever take one color (the SVG-sketched 3D mesh pipeline's per-face
+ * flat shading, the WebGL lit3d/toon3d pipeline's base material color, a limb's cap). Not
+ * an error case: those pipelines simply don't have a per-shape gradient concept, so a
+ * gradient-filled node just contributes its first stop there, same as it always rendered a
+ * single color before FillDef.color could be a gradient at all. */
+export function flatColorOf(color: SceneBackground | undefined, fallback: string): string {
+  if (color === undefined) return fallback;
+  return typeof color === "string" ? color : color.stops[0]?.color ?? fallback;
+}
 
 const WEIGHT_PX: Record<string, number> = { light: 1.5, confident: 3, bold: 5 };
 
@@ -8,6 +19,18 @@ export function strokeWidthOf(weight: Weight | undefined): number {
 }
 
 const ENERGY_MULT: Record<string, number> = { calm: 0.7, quick: 1, frantic: 1.6 };
+
+/** The fillStyle rough.js actually ends up using — "flat"/"watercolor"/"pixel"/"clay"
+ * force solid regardless of what the author asked for, same override roughOptionsFor
+ * already applies inline. Pulled out on its own so renderer.ts can decide, before calling
+ * roughOptionsFor, whether a gradient fill color is even eligible to render as a real
+ * gradient (only meaningful on "solid" — hachure/cross-hatch/zigzag/dots are procedural
+ * line strokes with no continuous area to gradient across). */
+export function effectiveFillStyle(style: NodeStyle, look: RenderLook): string {
+  const crisp = look === "flat" || look === "watercolor" || look === "pixel";
+  const clay = look === "clay";
+  return crisp || clay ? "solid" : style.fill?.style ?? "hachure";
+}
 
 /** Maps sketchling's design vocabulary (weight/looseness/energy) onto rough.js draw
  * options — the one place a scene's `look` actually changes what gets painted.
@@ -35,7 +58,12 @@ export function roughOptionsFor(
     preserveVertices: crisp,
   };
   if (closed && style.fill) {
-    opts.fill = style.fill.color;
+    // Resolves to a flat string here unconditionally — a real gradient url() is injected
+    // by the caller instead, by passing a style clone with fill.color already replaced
+    // (see renderer.ts's stroke-rendering block), so this function stays pure/DOM-free.
+    // Any gradient spec that reaches here unresolved (a fillStyle that isn't "solid", where
+    // a gradient can't render anyway) degrades to its first stop instead of crashing.
+    opts.fill = flatColorOf(style.fill.color, style.color ?? "#333");
     opts.fillStyle = crisp || clay ? "solid" : style.fill.style ?? "hachure";
     opts.hachureGap = 3 + (1 - (style.fill.density ?? 0.4)) * 8;
     opts.hachureAngle = style.fill.angle ?? -41;
