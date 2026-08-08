@@ -31,3 +31,4 @@ export type {
 export type { FilmOptions, AddSceneOptions } from "./core/film.js";
 export type { LimbOpts } from "./core/limb.js";
 export type { WalkLeg, WalkOptions, WalkResult } from "./core/gait.js";
+export type { SpringOpts } from "./core/node.js";

@@ -98,4 +98,31 @@ export abstract class SketchNode {
     this.animations.push({ kind: "morphTo", points, ...opts });
     return this;
   }
+
+  /** Secondary motion: this node chases `driver`'s live position (plus a fixed offset)
+   * with damped-spring lag and overshoot instead of a hand-authored delay — a floppy ear,
+   * a trailing bead, anything that should react to what another node does rather than run
+   * its own fixed-duration tween. `stiffness` higher = snappier/less lag; `damping` higher
+   * = less overshoot (near `2*sqrt(stiffness)` is critically damped — no overshoot at all).
+   * Runs from `at` (default 0) through the rest of the timeline. Only one springTo is
+   * meaningful per node — it drives the same transform moveTo/moveBy would. */
+  springTo(driver: SketchNode, opts: SpringOpts = {}): this {
+    this.animations.push({
+      kind: "springTo",
+      driverId: driver.id,
+      offsetX: opts.offset?.[0] ?? 0,
+      offsetY: opts.offset?.[1] ?? 0,
+      stiffness: opts.stiffness ?? 120,
+      damping: opts.damping ?? 12,
+      at: opts.at ?? 0,
+    });
+    return this;
+  }
+}
+
+export interface SpringOpts {
+  offset?: Point;
+  stiffness?: number;
+  damping?: number;
+  at?: number;
 }

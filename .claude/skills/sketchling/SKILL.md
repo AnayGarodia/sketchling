@@ -134,6 +134,18 @@ sketch.walk({
 - `sketch.walk({body, legs: [{limb, hipX}, {limb, hipX}], steps, stepLength, groundY, stepDuration?, liftHeight?, bodyBob?, at?})` generates a full bipedal gait — foot planting, lift-and-swing, body bob — over exactly two limbs, alternating which leads each step. Returns `{endAt}` so you can chain whatever comes after the walk without hand-computing the total duration. `body` is driven with `moveBy` (relative), so it composes with wherever the character already is.
 - The planted (trailing) leg's foot is provably fixed in world space for the whole time it's grounded, not just close at the keyframes — it works by giving that foot's `ikTo` for each half-step the *exact same* `{at, duration, ease}` as the body's own `moveBy` for that half-step, with the negated delta, so both tweens trace the identical ease curve and cancel at every sampled instant. Trust this rather than re-deriving your own countershift math for a custom gait.
 
+## Secondary motion — springs that chase another node
+
+```ts
+const bead = sketch.blob(128, 108, 14, style);
+scene.add(bead);
+bead.springTo(body, { offset: [8, -82], stiffness: 90, damping: 7, at: 1.7 });
+```
+
+- `node.springTo(driver, {offset?, stiffness?, damping?, at?})` makes `node` chase `driver`'s live position (plus a fixed `[dx, dy]` offset) with damped-spring lag and overshoot, rather than a hand-authored delay — a trailing bead, a bobble, anything that should react to what another node does. `stiffness` (default `120`) higher reads snappier/less lag; `damping` (default `12`) higher means less overshoot (`2*sqrt(stiffness)` is critically damped — no overshoot at all). Runs from `at` (default `0`) through the end of the timeline.
+- Precomputed once per scene build — a dense forward scan of the driver's own resolved position, integrated offline into a lookup table — rather than evaluated live on each seek, so seeking anywhere stays exact and repeatable, the same guarantee every other animation here has. One consequence: a spring isn't itself a tween on the timeline, so it reserves its own settle time automatically (roughly `9.2/damping` seconds after whatever else on the timeline ends) instead of needing one hand-authored — a spring's overshoot-and-settle would otherwise get cut off right when its driver stops moving.
+- Only moves the one node's own position, not a whole flexible connector — a stroke meant to visually link a fixed base to a springing tip (an ear, an antenna) would need to redraw every frame to track it, which this primitive doesn't do on its own. A nearby accessory with no rigid connection drawn to its driver (an earring, a bobble) is what it's for; see `examples/gallery/spring-follow.ts`.
+
 ## Look — the same scene, painted differently
 
 ```ts

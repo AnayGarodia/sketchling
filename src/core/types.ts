@@ -57,7 +57,16 @@ export type AnimOp =
   | ({ kind: "spin3d"; rx: number; ry: number; rz: number } & TimingOpts)
   // Absolute-target 2-bone IK: moves a Limb's end effector to (x, y) in the limb's own
   // local space — the renderer re-solves the joint angle from the target every frame.
-  | ({ kind: "ikTo"; x: number; y: number } & TimingOpts);
+  | ({ kind: "ikTo"; x: number; y: number } & TimingOpts)
+  // Secondary motion: chases driverId's own live position (its authored anchor plus
+  // whatever its own animations currently add, the same "local offset" space
+  // gsap.getProperty reads for camera.follow — a driver nested in an animated parent
+  // group contributes only its own local offset, not the parent's, same convention as
+  // everywhere else in this renderer) plus (offsetX, offsetY), with damped-spring lag
+  // and overshoot, from `at` through the rest of the timeline. Precomputed once per scene
+  // build (see renderer.ts's buildSprings), not evaluated live, so seeking anywhere stays
+  // exact and repeatable.
+  | { kind: "springTo"; driverId: string; offsetX: number; offsetY: number; stiffness: number; damping: number; at: number };
 
 // A scene's own viewport, animated independently of any node — pans/zooms the whole
 // canvas, or tracks a node's live position. "follow" resolves to the target node's

@@ -60,17 +60,17 @@ The rest of the gallery is the same test run against different agents entirely: 
 
 ### Rig and look gallery
 
-Seven more scenes in [`examples/gallery/`](examples/gallery/), proving out IK rigging, the procedural walk generator, and all six render `look`s — each one still an animation (`docs/gallery-*.mp4`), not just a still.
+Eight more scenes in [`examples/gallery/`](examples/gallery/), proving out IK rigging, the procedural walk generator, secondary-motion springs, and all six render `look`s — each one still an animation (`docs/gallery-*.mp4`), not just a still.
 
 | | | |
 |---|---|---|
-| ![walk cycle](docs/gallery-walk-cycle.png) | ![reaching arm](docs/gallery-reaching-arm.png) | ![flat look](docs/gallery-flat-look.png) |
-| ![clay look](docs/gallery-clay-look.png) | ![watercolor look](docs/gallery-watercolor-look.png) | ![lit3d mesh](docs/gallery-lit3d-mesh.png) |
-| ![pixel look](docs/gallery-pixel-look.png) | | |
+| ![walk cycle](docs/gallery-walk-cycle.png) | ![reaching arm](docs/gallery-reaching-arm.png) | ![spring follow](docs/gallery-spring-follow.png) |
+| ![flat look](docs/gallery-flat-look.png) | ![clay look](docs/gallery-clay-look.png) | ![watercolor look](docs/gallery-watercolor-look.png) |
+| ![lit3d mesh](docs/gallery-lit3d-mesh.png) | ![pixel look](docs/gallery-pixel-look.png) | |
 
-`walk-cycle.ts`: a two-legged character strides across the ground on `sketch.limb` legs driven by `sketch.walk` — the planted foot holds still (verified to a fraction of a pixel) while the other swings through. `reaching-arm.ts`: a single IK arm reaches toward three different targets in sequence, the elbow solving itself each time. `flat-look.ts`, `clay-look.ts`, `watercolor-look.ts`, `lit3d-mesh.ts`, `pixel-look.ts`: one small scene per non-default `look`, each picked to show off that look's own distinguishing trait — crisp precision, stop-motion stepping, edge bleed, real lighting and shadows, and blocky low-res cells, respectively.
+`walk-cycle.ts`: a two-legged character strides across the ground on `sketch.limb` legs driven by `sketch.walk` — the planted foot holds still (verified to a fraction of a pixel) while the other swings through. `reaching-arm.ts`: a single IK arm reaches toward three different targets in sequence, the elbow solving itself each time. `spring-follow.ts`: a bead trailing a bouncing body via `springTo`, lagging and overshooting across three bounces rather than tracking it 1:1. `flat-look.ts`, `clay-look.ts`, `watercolor-look.ts`, `lit3d-mesh.ts`, `pixel-look.ts`: one small scene per non-default `look`, each picked to show off that look's own distinguishing trait — crisp precision, stop-motion stepping, edge bleed, real lighting and shadows, and blocky low-res cells, respectively.
 
-Six of these seven were each written by their own agent off `AGENTS.md` alone, with a hard rule to touch nothing else in the repo — not the cross-vendor, no-shared-context test the jellyfish/balloon/lighthouse scenes above are (those were independent tools with zero relationship to the one that built the library; these six were spawned by this same project's own session). Each did its own build, render, and self-check before reporting done. What's verified independently, after the fact, by a separate pass with no stake in the outcome: `walk-cycle.ts`'s planted foot re-checked with pixel-tracking (holds to within 0.06px across the whole grounded phase), `watercolor-look.ts`'s bleed re-checked with a pixel diff against the same scene forced to `"flat"` (7,003px changed, nowhere near the ~100px noise floor), and a full lint sweep across all seven with no unexpected findings. `pixel-look.ts` is the one exception to the cold-agent process — written directly, alongside the `"pixel"` look itself.
+Six of these eight were each written by their own agent off `AGENTS.md` alone, with a hard rule to touch nothing else in the repo — not the cross-vendor, no-shared-context test the jellyfish/balloon/lighthouse scenes above are (those were independent tools with zero relationship to the one that built the library; these six were spawned by this same project's own session). Each did its own build, render, and self-check before reporting done. What's verified independently, after the fact, by a separate pass with no stake in the outcome: `walk-cycle.ts`'s planted foot re-checked with pixel-tracking (holds to within 0.06px across the whole grounded phase), `watercolor-look.ts`'s bleed re-checked with a pixel diff against the same scene forced to `"flat"` (7,003px changed, nowhere near the ~100px noise floor), and a full lint sweep across all eight with no unexpected findings. `pixel-look.ts` and `spring-follow.ts` are the two exceptions to the cold-agent process — written directly, alongside their respective features. `spring-follow.ts` in particular went through two real, independently-caught bugs before it was right: an initial settle-time estimate anchored to the wrong reference point left the bead frozen mid-oscillation about 14px off target (caught by pixel-tracking its resting position against the driver's known final position, not by eye), and an early version connecting the bead to the body with a static drawn stalk read as visibly broken — the bead sprang away from the motionless rod rather than bending it, so the stalk was dropped in favor of a plain trailing accessory (documented above as a real limitation, not silently designed around).
 
 ## Vocabulary
 
@@ -152,6 +152,20 @@ sketch.walk({
 
 `sketch.walk({body, legs: [{limb, hipX}, {limb, hipX}], steps, stepLength, groundY, stepDuration?, liftHeight?, bodyBob?, at?})` generates a whole bipedal gait — foot planting, lift-and-swing, body bob — over exactly two limbs, alternating which leg leads each step, and returns `{endAt}` so you can chain whatever comes after without hand-computing the total duration. `body` moves with `moveBy` (relative), so it composes with wherever the character already is. The planted leg's foot is provably fixed in world space for the whole time it's grounded — not just close at the keyframes — because its `ikTo` for each half-step shares the *exact same* `{at, duration, ease}` as the body's own `moveBy` for that half-step, with the negated delta, so both tweens trace the identical ease curve and cancel at every sampled instant, not just at the endpoints.
 
+## Secondary motion — springs that chase another node
+
+```ts
+const bead = sketch.blob(128, 108, 14, style);
+scene.add(bead);
+bead.springTo(body, { offset: [8, -82], stiffness: 90, damping: 7, at: 1.7 });
+```
+
+`node.springTo(driver, {offset?, stiffness?, damping?, at?})` makes `node` chase `driver`'s live position (plus a fixed `[dx, dy]` offset) with damped-spring lag and overshoot, instead of a hand-authored delay — a trailing bead or bobble reacting to what another node does, the layer above rigid IK: a limb's joint angle is *solved*, but nothing about it lags or overshoots on its own. `stiffness` (default `120`) higher reads snappier; `damping` (default `12`) higher means less overshoot (`2*sqrt(stiffness)` is critically damped, no overshoot at all). Runs from `at` (default `0`) through the end of the timeline.
+
+Precomputed once per scene build rather than evaluated live: a damped spring's position at any time depends on its whole history (displacement and velocity both carry forward), not just where its driver is *right now*, so answering an arbitrary seek correctly means either re-integrating from zero on every single seek or computing the whole trajectory once. This does the latter — one dense forward scan of the driver's own resolved position at build time, integrated offline into a lookup table — so a real seek just interpolates between two precomputed samples, and repeated seeks to the same moment come back exact and byte-identical, the same guarantee every other animation in this library has.
+
+A spring only drives the one node's own position — not a whole flexible connector. A stroke meant to visually link a fixed base to a springing tip (an ear, an antenna) would need to redraw every frame to stay attached to a moving target, which this primitive doesn't do by itself. A plain accessory with no rigid line drawn to its driver — an earring, a bobble on a hat — is what it's for; see `examples/gallery/spring-follow.ts`.
+
 ## Look — the same scene, painted differently
 
 ```ts
@@ -205,7 +219,7 @@ Early and opinionated by design: v1 targets one aesthetic (flat, hand-drawn line
 
 If you're using [Claude Code](https://claude.com/claude-code) inside this repo, `.claude/skills/sketchling/` is available and teaches the vocabulary directly — no README round-trip needed.
 
-Not yet built: more shape helpers beyond `arrow`/`speechBubble` (a star, a checkmark) as thin geometric compositions of the existing primitives, not a curated asset library — that's a deliberate non-goal, see "Why" above; secondary motion (springs on an ear, a tail, hair) and particle systems, the next layer above rigid IK limbs; more `look` treatments beyond the current six (cel-shaded); an auto-rig that derives a `sketch.limb` skeleton from a drawn silhouette instead of hand-placed joints.
+Not yet built: more shape helpers beyond `arrow`/`speechBubble` (a star, a checkmark) as thin geometric compositions of the existing primitives, not a curated asset library — that's a deliberate non-goal, see "Why" above; a flexible connector that redraws itself to stay attached to a `springTo`'d tip (so secondary motion can drive an actual ear or antenna, not just a nearby accessory) and particle systems, the next layer above what's here now; more `look` treatments beyond the current six (cel-shaded); an auto-rig that derives a `sketch.limb` skeleton from a drawn silhouette instead of hand-placed joints.
 
 ## Contributing
 
