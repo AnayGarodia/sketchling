@@ -10,6 +10,7 @@ import { Limb, limb, type LimbOpts } from "./limb.js";
 import { walk, type WalkOptions, type WalkResult } from "./gait.js";
 import { Connector } from "./connector.js";
 import { Particles, type ParticleOpts } from "./particles.js";
+import { quickRig, type QuickRig, type QuickRigOpts } from "./quickrig.js";
 import type { SketchNode } from "./node.js";
 import type { NodeStyle, Point, Point3 } from "./types.js";
 
@@ -98,5 +99,14 @@ export const sketch = {
    * no precomputed table needed. */
   particles(x: number, y: number, style: NodeStyle = {}, opts: ParticleOpts = {}): Particles {
     return new Particles(x, y, style, opts);
+  },
+  /** Auto-derives a headroom-safe two-legged rig (two sketch.limb legs) from a drawn body's
+   * own bounding box, instead of hand-placing hip coordinates and leg lengths — see
+   * quickrig.ts for the worst-case-reach math this automates. Proportion-based (center,
+   * width, bottom edge of `body`'s bbox), not a real skeleton extracted from an arbitrary
+   * silhouette — good for a round or roughly-humanoid body, not a substitute for hand-placed
+   * joints on an unusual shape. */
+  quickRig(body: Stroke | Group, opts: QuickRigOpts): QuickRig {
+    return quickRig(body, opts);
   },
 };

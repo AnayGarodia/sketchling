@@ -11,6 +11,8 @@ export { walk } from "./core/gait.js";
 export { Connector, connector } from "./core/connector.js";
 export { Particles, particles } from "./core/particles.js";
 export type { ParticleOpts } from "./core/particles.js";
+export { quickRig } from "./core/quickrig.js";
+export type { QuickRig, QuickRigOpts } from "./core/quickrig.js";
 export type {
   Point,
   Point3,

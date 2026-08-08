@@ -152,6 +152,13 @@ sketch.walk({
 
 `sketch.walk({body, legs: [{limb, hipX}, {limb, hipX}], steps, stepLength, groundY, stepDuration?, liftHeight?, bodyBob?, at?})` generates a whole bipedal gait — foot planting, lift-and-swing, body bob — over exactly two limbs, alternating which leg leads each step, and returns `{endAt}` so you can chain whatever comes after without hand-computing the total duration. `body` moves with `moveBy` (relative), so it composes with wherever the character already is. The planted leg's foot is provably fixed in world space for the whole time it's grounded — not just close at the keyframes — because its `ikTo` for each half-step shares the *exact same* `{at, duration, ease}` as the body's own `moveBy` for that half-step, with the negated delta, so both tweens trace the identical ease curve and cancel at every sampled instant, not just at the endpoints.
 
+```ts
+const rig = sketch.quickRig(body, { groundY: 265, stepLength: 42, capRadius: 9 });
+const character = sketch.group([rig.legL, rig.legR, body, head]);
+```
+
+`sketch.quickRig(body, {groundY, stepLength?, hipDrop?, hipSpread?, reachMargin?, legStyle?, capRadius?})` auto-derives a headroom-safe two-legged rig from `body`'s own bounding box instead of hand-picking hip coordinates and leg lengths — the exact worst-case-reach math from the paragraph above (`sqrt(stepLength² + hipToGroundDrop²)` sized with `reachMargin`, default `1.35`, 35% headroom) computed for you. Returns `{legL, legR, hipY, hipLX, hipRX, len1, len2}` — feed `legL`/`legR` straight into `sketch.walk`'s `legs` array. Named honestly: it derives proportions from a bounding box (center, width, bottom edge), not a real skeleton extracted from an arbitrary drawn silhouette — a much harder problem this doesn't attempt. Good for a round or roughly-humanoid body; an unusual or asymmetric shape may still want hand-placed joints via `sketch.limb`. `examples/gallery/quickrig-walk.ts` is the same character as `walk-cycle.ts` above, with one `quickRig` call replacing five hand-picked constants — verified with the same visual-contact-sheet check across a full stride (no clamp pops) plus a determinism check (same seed always derives the same hip/leg numbers).
+
 ## Secondary motion — springs that chase another node
 
 ```ts
@@ -243,7 +250,7 @@ Early and opinionated by design: v1 targets one aesthetic (flat, hand-drawn line
 
 If you're using [Claude Code](https://claude.com/claude-code) inside this repo, `.claude/skills/sketchling/` is available and teaches the vocabulary directly — no README round-trip needed.
 
-Not yet built: more shape helpers beyond `arrow`/`speechBubble` (a star, a checkmark) as thin geometric compositions of the existing primitives, not a curated asset library — that's a deliberate non-goal, see "Why" above; an auto-rig that derives a `sketch.limb` skeleton from a drawn silhouette instead of hand-placed joints.
+Not yet built: more shape helpers beyond `arrow`/`speechBubble` (a star, a checkmark) as thin geometric compositions of the existing primitives, not a curated asset library — that's a deliberate non-goal, see "Why" above; a genuine skeleton extracted from an arbitrary drawn silhouette (`quickRig` derives proportions from a bounding box, which covers the common case — true silhouette analysis is a harder, separate problem); an inverted-hull outline pass extended to non-toon looks.
 
 ## Contributing
 

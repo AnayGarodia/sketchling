@@ -134,6 +134,14 @@ sketch.walk({
 - `sketch.walk({body, legs: [{limb, hipX}, {limb, hipX}], steps, stepLength, groundY, stepDuration?, liftHeight?, bodyBob?, at?})` generates a full bipedal gait — foot planting, lift-and-swing, body bob — over exactly two limbs, alternating which leads each step. Returns `{endAt}` so you can chain whatever comes after the walk without hand-computing the total duration. `body` is driven with `moveBy` (relative), so it composes with wherever the character already is.
 - The planted (trailing) leg's foot is provably fixed in world space for the whole time it's grounded, not just close at the keyframes — it works by giving that foot's `ikTo` for each half-step the *exact same* `{at, duration, ease}` as the body's own `moveBy` for that half-step, with the negated delta, so both tweens trace the identical ease curve and cancel at every sampled instant. Trust this rather than re-deriving your own countershift math for a custom gait.
 
+```ts
+const rig = sketch.quickRig(body, { groundY: 265, stepLength: 42, capRadius: 9 });
+const character = sketch.group([rig.legL, rig.legR, body, head]);
+```
+
+- `sketch.quickRig(body, {groundY, stepLength?, hipDrop?, hipSpread?, reachMargin?, legStyle?, capRadius?})` auto-derives a headroom-safe two-legged rig from `body`'s own bounding box (a `Stroke`/`Blob`/`Group`) instead of hand-picking hip coordinates and leg lengths — the exact worst-case-reach math from the reach-headroom bullet above (`sqrt(stepLength² + hipToGroundDrop²)` sized with `reachMargin`, default `1.35` = 35% headroom), done for you. Returns `{legL, legR, hipY, hipLX, hipRX, len1, len2}` — pass `legL`/`legR` straight into `sketch.walk`'s `legs` array, `hipLX`/`hipRX` as its `hipX` values.
+- Named honestly: this derives proportions from a bounding box (center, width, bottom edge) — NOT a real skeleton extracted from an arbitrary drawn silhouette, a much harder problem it doesn't attempt. Good for a round or roughly-humanoid body; an unusual or asymmetric shape may still want hand-placed joints via `sketch.limb` directly. See `examples/gallery/quickrig-walk.ts` — the same character as `walk-cycle.ts`, with one `quickRig` call replacing five hand-picked constants.
+
 ## Secondary motion — springs that chase another node
 
 ```ts
