@@ -3,6 +3,7 @@ import { Stroke } from "./stroke.js";
 import { Group } from "./group.js";
 import { Camera } from "./camera.js";
 import { Mesh3D } from "./mesh3d.js";
+import { Limb } from "./limb.js";
 import type { SceneBackground, SerializedNode, SerializedScene } from "./types.js";
 import { hashSeed } from "./geometry.js";
 
@@ -109,6 +110,15 @@ function serializeNode(node: SketchNode): SerializedNode {
       mesh3dFaces: node.faces,
       mesh3dFocalLength: node.focalLength,
       mesh3dLightDir: node.lightDir,
+    };
+  }
+  if (node instanceof Limb) {
+    return {
+      id: node.id, type: "limb", style: node.style, transform: node.transform,
+      animations: node.animations, seed: node.seed,
+      limbRootX: node.rootX, limbRootY: node.rootY, limbLen1: node.len1, limbLen2: node.len2,
+      limbBend: node.bend, limbCapRadius: node.capRadius, limbCapColor: node.capColor,
+      limbTargetX: node.targetX, limbTargetY: node.targetY,
     };
   }
   if (node instanceof Stroke) {

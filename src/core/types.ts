@@ -54,7 +54,10 @@ export type AnimOp =
   // Absolute-target 3D rotation, in degrees (matching rotateTo's convention — converted
   // to radians in the renderer, not here). Independent of `rotateTo`, which still spins
   // the mesh's flat 2D placement (its screen-space transform) same as any other node.
-  | ({ kind: "spin3d"; rx: number; ry: number; rz: number } & TimingOpts);
+  | ({ kind: "spin3d"; rx: number; ry: number; rz: number } & TimingOpts)
+  // Absolute-target 2-bone IK: moves a Limb's end effector to (x, y) in the limb's own
+  // local space — the renderer re-solves the joint angle from the target every frame.
+  | ({ kind: "ikTo"; x: number; y: number } & TimingOpts);
 
 // A scene's own viewport, animated independently of any node — pans/zooms the whole
 // canvas, or tracks a node's live position. "follow" resolves to the target node's
@@ -73,7 +76,7 @@ export interface Mesh3DFaceData {
 
 export interface SerializedNode {
   id: string;
-  type: "stroke" | "blob" | "group" | "mesh3d";
+  type: "stroke" | "blob" | "group" | "mesh3d" | "limb";
   points?: Point[];
   closed?: boolean;
   style?: NodeStyle;
@@ -92,6 +95,18 @@ export interface SerializedNode {
   mesh3dFaces?: Mesh3DFaceData[];
   mesh3dFocalLength?: number;
   mesh3dLightDir?: Point3;
+  // limb only: the 2-bone chain's geometry and current (pre-animation) target — the
+  // renderer solves the joint position from these every seek (the 2D fields above —
+  // points/closed — are unused on a limb node).
+  limbRootX?: number;
+  limbRootY?: number;
+  limbLen1?: number;
+  limbLen2?: number;
+  limbBend?: 1 | -1;
+  limbCapRadius?: number;
+  limbCapColor?: string;
+  limbTargetX?: number;
+  limbTargetY?: number;
 }
 
 export interface GradientStop {

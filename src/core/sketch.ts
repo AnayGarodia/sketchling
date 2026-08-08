@@ -6,6 +6,7 @@ import { Film, type FilmOptions } from "./film.js";
 import { buildText } from "./font.js";
 import { buildArrow, buildSpeechBubble, type ArrowOptions, type SpeechBubbleOptions } from "./shapes.js";
 import { Mesh3D, box3d, icosahedron3d } from "./mesh3d.js";
+import { Limb, limb, type LimbOpts } from "./limb.js";
 import type { NodeStyle, Point, Point3 } from "./types.js";
 
 export const sketch = {
@@ -60,5 +61,13 @@ export const sketch = {
    * flat-shading and painter's-algorithm depth sorting. */
   mesh3d(vertices: Point3[], faces: { indices: number[]; color?: string }[], style: NodeStyle = {}): Mesh3D {
     return new Mesh3D(vertices, faces, style);
+  },
+  /** A 2-bone IK limb (leg or arm): two segments whose joint angle is solved every frame
+   * from a target position, instead of a hand-authored rotateTo per segment. Rest pose
+   * hangs straight down from (rootX, rootY) — override with .restAt(), animate the target
+   * with .ikTo(x, y, opts). Chain moveTo/moveBy/rotateTo on the limb itself like any node
+   * to place/orient the whole chain; ikTo only moves the end effector within it. */
+  limb(rootX: number, rootY: number, len1: number, len2: number, style: NodeStyle = {}, opts: LimbOpts = {}): Limb {
+    return limb(rootX, rootY, len1, len2, style, opts);
   },
 };
