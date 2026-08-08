@@ -1,5 +1,5 @@
-import { sketch } from "../src/index.js";
-import type { Point } from "../src/core/types.js";
+import { sketch } from "../../src/index.js";
+import type { Point } from "../../src/core/types.js";
 
 // Hand-lettered "sketchling" wordmark — not a text primitive (there isn't one; letterforms
 // are one-off hand-plotted strokes, not a general API). Good stress test for the vocabulary

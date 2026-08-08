@@ -2,7 +2,7 @@
 // Sapling", so the little sprite (and the world's key coordinates/colors) stay visually
 // identical from scene 1 to scene 6. Not a scene itself — no default export — the numbered
 // scene files import from it, the same way a real project factors out shared constants.
-import { sketch } from "../src/index.js";
+import { sketch } from "../../src/index.js";
 
 export const palette = {
   ink: "#2b2115",

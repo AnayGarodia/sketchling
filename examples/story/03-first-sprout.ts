@@ -1,4 +1,4 @@
-import { sketch } from "../src/index.js";
+import { sketch } from "../../src/index.js";
 import { palette, GROUND_Y, PLANT_X, drawPip, groundBand, moundPoints } from "./_shared.js";
 
 // PIP AND THE SAPLING — part 3: "First Sprout"

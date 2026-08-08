@@ -8,7 +8,7 @@ Instructions for coding agents (Codex, Devin, Claude Code, or otherwise) working
 - No test suite yet — verification is rendering a scene and looking at the actual output (see "Verifying your own work" below), not unit tests.
 - Core (`src/core/`) has no DOM dependency on purpose — it needs to run cheaply in plain Node for the Tier 0 linter and for `sketch.scene()`/`sketch.film()` construction. Don't introduce a DOM/browser dependency there; that layer belongs in `src/render/`.
 - `src/render/renderer.ts` is the animation engine (mask-based `drawOn`, line boil, Film composition) — it's the most load-bearing file in the repo and the trickiest to get right blind; changes there deserve an actual rendered check at a genuinely mid-motion timestamp, not just a build check (see the file's own comments for two non-obvious GSAP behaviors already found the hard way).
-- `examples/` are vocabulary demos (one concept each); `story/` is a narrative sequence; `launch/` is launch-video-specific source, not meant as a general example. Don't mix these purposes into one file.
+- `examples/` are vocabulary demos (one concept each); `examples/story/` is a narrative sequence; `examples/launch/` is launch-video-specific source, not meant as a general example. Don't mix these purposes into one file.
 
 ## Drawing with sketchling
 
@@ -39,7 +39,7 @@ Tier 0 lint (off-canvas, degenerate shapes, heavy overlap, off-center compositio
 - `sketch.loop(points, style)` — a closed freehand shape
 - `sketch.blob(cx, cy, radius, style, vertices?)` — an organic, deliberately-not-a-perfect-circle shape. `vertices` (default `10`) controls outline complexity. Below roughly 8-9px radius the outline jitter overwhelms the fill and small blobs stop reading clearly — give a "bubble" radius ≥9-10 and a light weight, not a tiny radius.
 - `sketch.group(children)` — groups nodes so they move/scale/rotate together. `.stagger(each, {duration, at, ease, effect})` choreographs children's entrances with rhythm.
-- `sketch.text(str, x, y, style, {size?})` — hand-lettered text. Lowercase a-z, digits, basic punctuation (`. , ! ? ' -`); no case distinction. Returns a `Group` of one Stroke per letter-stroke — animate with `.stagger()` for a letter-by-letter reveal, or leave it static.
+- `sketch.text(str, x, y, style, {size?})` — hand-lettered text. Lowercase a-z, digits, basic punctuation (`. , ! ? ' -`); no case distinction. `size` is the approximate letter height in pixels (default `48`), not a raw scale multiplier. Returns a `Group` of one Stroke per letter-stroke — animate with `.stagger()` for a letter-by-letter reveal, or leave it static.
 - `sketch.film({width, height, background})` — cuts several independent `Scene`s together (see Film below).
 
 All points are `[x, y]` pairs in the scene's own absolute canvas coordinates — draw shapes directly where they should appear.
@@ -69,7 +69,7 @@ film.addScene(sceneB, { transition: "fade", transitionDuration: 0.5, hold: 0.4 }
 export default film; // renders/lints/videos exactly like a Scene
 ```
 
-Each scene keeps its own size, background, and animation, fully independent — `Film` scales/centers each into a shared canvas and sequences them. No shared runtime state between scenes; a recurring character across a longer sequence needs its own shared builder function reused across scene files (see `story/_shared.ts`).
+Each scene keeps its own size, background, and animation, fully independent — `Film` scales/centers each into a shared canvas and sequences them. No shared runtime state between scenes; a recurring character across a longer sequence needs its own shared builder function reused across scene files (see `examples/story/_shared.ts`).
 
 ### Things that look like bugs but aren't
 

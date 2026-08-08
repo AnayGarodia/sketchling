@@ -27,8 +27,9 @@ export const sketch = {
   },
   /** Hand-drawn lettering — lowercase a-z, digits, and basic punctuation, no case
    * distinction (uppercase reuses the lowercase glyph). Returns a Group of per-letter
-   * strokes; animate it with `.stagger()` for a letter-by-letter reveal. */
+   * strokes; animate it with `.stagger()` for a letter-by-letter reveal. `size` is an
+   * approximate letter height in pixels (default 48), not a raw scale multiplier. */
   text(str: string, x: number, y: number, style: NodeStyle = {}, opts: { size?: number } = {}): Group {
-    return buildText(str, x, y, style, opts.size ?? 1);
+    return buildText(str, x, y, style, opts.size);
   },
 };

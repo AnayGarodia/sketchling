@@ -43,18 +43,20 @@ If you're working inside a clone of this repo rather than a published install, `
 
 ## Gallery
 
-Seven scenes, different corners of the vocabulary — source for all of them is in `examples/`, and each one renders as an animation (`--video`), not just a still. Nothing in these scenes goes still the instant it's drawn.
+Eleven scenes, different corners of the vocabulary — source for all of them is in `examples/`, and each one renders as an animation (`--video`), not just a still. Nothing in these scenes goes still the instant it's drawn.
 
 | | | |
 |---|---|---|
 | ![keyhole laptop](docs/keyhole-laptop.png) | ![doodle flourish](docs/doodle-flourish.png) | ![waving character](docs/waving-character.png) |
 | ![rocket liftoff](docs/rocket-liftoff.png) | ![coffee steam](docs/coffee-steam.png) | ![jellyfish drift](docs/jellyfish-drift.png) |
+| ![hot air balloon](docs/hot-air-balloon.png) | ![signpost hello](docs/signpost-hello.png) | ![moonlit lighthouse](docs/moonlit-lighthouse.png) |
+| ![film: seed to bloom](docs/film-seed-to-bloom.png) | | |
 
-Boxy geometry with solid fills, hachure and cross-hatch texture, pure open-stroke linework with no fills at all, an organic blob-built character that waves once it's drawn, a rocket that launches off the top of the frame leaving its exhaust behind, rising coffee steam that drifts and fades after it draws, and a jellyfish with independently-waving tentacles and a slow breathing pulse.
+Boxy geometry with solid fills, hachure and cross-hatch texture, pure open-stroke linework with no fills at all, an organic blob-built character that waves once it's drawn, a rocket that launches off the top of the frame leaving its exhaust behind, rising coffee steam that drifts and fades after it draws, a jellyfish with independently-waving tentacles and a slow breathing pulse, a hot-air balloon drifting through clouds, a signpost with a hand-lettered caption, a night lighthouse sweeping its beam, and a three-scene `sketch.film()` sequence cutting from seed to bloom.
 
-That last one — `jellyfish-drift.ts` — wasn't written by us. It was written by a fresh Claude agent given nothing but this README and the other six example files: no access to the renderer's source, no conversation history, no hints. It built and rendered on the first attempt, no fixes needed. That's the actual test of "an LLM can pick this up," not just a claim — see [`docs/launch-reel.mp4`](docs/launch-reel.mp4) for the full sequence.
+Several of these weren't written by us. `jellyfish-drift.ts` was written by a fresh Claude agent given nothing but this README and six of the other example files: no renderer internals, no conversation history, no hints. It built and rendered on the first attempt, no fixes needed. [`examples/story/`](examples/story/) is a larger version of the same test — a six-scene short, *Pip and the Sapling*, with a real beginning, middle, and end and one character drawn consistently across every scene ([`docs/pip-and-the-sapling.mp4`](docs/pip-and-the-sapling.mp4)).
 
-A second, larger cold test went further: [`story/`](story/) is a six-scene short — *Pip and the Sapling* — written the same way (README and `examples/` only, nothing else), with a real beginning, middle, and end, and one character drawn consistently across every scene. [`docs/pip-and-the-sapling.mp4`](docs/pip-and-the-sapling.mp4) is the result, kept exactly as written.
+The rest of the gallery is the same test run against different agents entirely: `hot-air-balloon.ts`, `signpost-hello.ts`, and `film-seed-to-bloom.ts` were each written cold by [Devin](https://devin.ai), and `moonlit-lighthouse.ts` by [Codex](https://openai.com/codex/). Same rules every time — README and `examples/` only, no implementation source, no hints. Between them they found two real bugs before this launch shipped: `moveTo()` silently behaving like a relative move instead of an absolute one, and `sketch.text()` silently misplacing every letter past the first few characters of a string. Both are fixed now (see `AGENTS.md`'s "Working on the library" section and the commit history if you want the detail) — this is the actual value of testing against agents that don't share any context with the one that built the tool.
 
 ## Vocabulary
 
@@ -68,7 +70,7 @@ A second, larger cold test went further: [`story/`](story/) is a six-scene short
   for (const [x, y] of positions) dots.add(sketch.blob(x, y, 18, style));
   dots.stagger(0.3, { duration: 0.5 }); // each child's drawOn starts 0.3s after the last
   ```
-- `sketch.text(str, x, y, style, {size?})` — hand-lettered text: lowercase a-z, digits, basic punctuation, no case distinction (uppercase input reuses the lowercase glyph). There's no outline-font renderer behind this, just a hand-plotted alphabet — enough for a caption or a title, not a general typesetting system. Returns a `Group` of per-letter strokes; animate with `.stagger()` for a letter-by-letter reveal.
+- `sketch.text(str, x, y, style, {size?})` — hand-lettered text: lowercase a-z, digits, basic punctuation, no case distinction (uppercase input reuses the lowercase glyph). `size` is the approximate letter height in pixels (default `48`), like a font-size — not a raw scale multiplier. There's no outline-font renderer behind this, just a hand-plotted alphabet — enough for a caption or a title, not a general typesetting system. Returns a `Group` of per-letter strokes; animate with `.stagger()` for a letter-by-letter reveal.
 - `sketch.film({width, height, background})` — cuts several independent `Scene`s together into one render (see Film below).
 
 **Style:** `color`, `weight` (`"light" | "confident" | "bold"` or a number), `looseness` (0–1, precise → wild — perturbs both the shape's outline and the render jitter), `energy` (`"calm" | "quick" | "frantic"`), `smooth` (spline through points for organic shapes vs. straight edges for boxes/wedges — default `true`), `fill` (`{ color, style: "hachure" | "cross-hatch" | "solid" | "zigzag" | "dots", density, angle }`).
@@ -90,7 +92,7 @@ film.addScene(sceneB, { transition: "fade", transitionDuration: 0.5, hold: 0.4 }
 export default film; // same CLI, same flags, same lint — a Film renders exactly like a Scene
 ```
 
-Each scene keeps its own size, background, and animation, entirely independent of the others — `Film` scales and centers each one into its own shared canvas (letterboxing whatever doesn't match) and sequences them with a `"cut"` (instant, default) or `"fade"` (crossfade over `transitionDuration`) between each. `hold` is how long a scene sits on its settled frame before the next takes over. There's no shared runtime state between scenes — each one draws its own world from scratch — so a recurring character across a longer sequence needs its own shared builder function reused across scene files (see `story/_shared.ts`).
+Each scene keeps its own size, background, and animation, entirely independent of the others — `Film` scales and centers each one into its own shared canvas (letterboxing whatever doesn't match) and sequences them with a `"cut"` (instant, default) or `"fade"` (crossfade over `transitionDuration`) between each. `hold` is how long a scene sits on its settled frame before the next takes over. There's no shared runtime state between scenes — each one draws its own world from scratch — so a recurring character across a longer sequence needs its own shared builder function reused across scene files (see `examples/story/_shared.ts`).
 
 ## Self-verification, without burning tokens
 

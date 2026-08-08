@@ -1,4 +1,4 @@
-import { sketch } from "../src/index.js";
+import { sketch } from "../../src/index.js";
 import { palette, GROUND_Y, SPRITE_STAND_X, drawPip, groundBand } from "./_shared.js";
 
 // PIP AND THE SAPLING — part 1: "The Seed"

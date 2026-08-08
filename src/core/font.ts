@@ -149,13 +149,26 @@ function advanceFor(ch: string): number {
   return DEFAULT_ADVANCE;
 }
 
-export function buildText(str: string, x: number, y: number, style: NodeStyle, size: number): Group {
+// Glyphs are plotted in a ~100-unit-tall local box (baseline to cap height, see the
+// coordinates above) — `size` is expressed as an approximate letter height in pixels
+// (like a font-size), not a raw multiplier, so `size: 40` reads as "about 40px tall"
+// rather than needing something like `0.4` to avoid every letter landing off-canvas.
+const GLYPH_EM_HEIGHT = 100;
+const DEFAULT_SIZE_PX = 48;
+
+export function buildText(str: string, x: number, y: number, style: NodeStyle, sizePx: number | undefined): Group {
+  const size = (sizePx ?? DEFAULT_SIZE_PX) / GLYPH_EM_HEIGHT;
   const group = new Group();
+  // Accumulated in raw, unscaled glyph-space units — scaling is applied exactly once,
+  // at the point-computation step below. Scaling `cursor` on every accumulation AND
+  // again when placing points compounds with each letter (fine by coincidence at
+  // size≈1, badly wrong everywhere else — letters drifting closer together the longer
+  // the string, since each already-scaled cursor value gets re-shrunk on every glyph).
   let cursor = 0;
   for (const rawCh of str) {
     const ch = rawCh.toLowerCase();
     if (ch === " ") {
-      cursor += advanceFor(ch) * size;
+      cursor += advanceFor(ch);
       continue;
     }
     const glyph = GLYPHS[ch];
@@ -165,7 +178,7 @@ export function buildText(str: string, x: number, y: number, style: NodeStyle, s
         group.add(new Stroke(pts, style, !!stroke.closed));
       }
     }
-    cursor += advanceFor(ch) * size;
+    cursor += advanceFor(ch);
   }
   return group;
 }
