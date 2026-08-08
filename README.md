@@ -58,6 +58,20 @@ Several of these weren't written by us. `jellyfish-drift.ts` was written by a fr
 
 The rest of the gallery is the same test run against different agents entirely: `hot-air-balloon.ts`, `signpost-hello.ts`, and `film-seed-to-bloom.ts` were each written cold by [Devin](https://devin.ai), and `moonlit-lighthouse.ts` by [Codex](https://openai.com/codex/). Same rules every time — README and `examples/` only, no implementation source, no hints. Between them they found two real bugs before this launch shipped: `moveTo()` silently behaving like a relative move instead of an absolute one, and `sketch.text()` silently misplacing every letter past the first few characters of a string. Both are fixed now (see `AGENTS.md`'s "Working on the library" section and the commit history if you want the detail) — this is the actual value of testing against agents that don't share any context with the one that built the tool.
 
+### Rig and look gallery
+
+Seven more scenes in [`examples/gallery/`](examples/gallery/), proving out IK rigging, the procedural walk generator, and all six render `look`s — each one still an animation (`docs/gallery-*.mp4`), not just a still.
+
+| | | |
+|---|---|---|
+| ![walk cycle](docs/gallery-walk-cycle.png) | ![reaching arm](docs/gallery-reaching-arm.png) | ![flat look](docs/gallery-flat-look.png) |
+| ![clay look](docs/gallery-clay-look.png) | ![watercolor look](docs/gallery-watercolor-look.png) | ![lit3d mesh](docs/gallery-lit3d-mesh.png) |
+| ![pixel look](docs/gallery-pixel-look.png) | | |
+
+`walk-cycle.ts`: a two-legged character strides across the ground on `sketch.limb` legs driven by `sketch.walk` — the planted foot holds still (verified to a fraction of a pixel) while the other swings through. `reaching-arm.ts`: a single IK arm reaches toward three different targets in sequence, the elbow solving itself each time. `flat-look.ts`, `clay-look.ts`, `watercolor-look.ts`, `lit3d-mesh.ts`, `pixel-look.ts`: one small scene per non-default `look`, each picked to show off that look's own distinguishing trait — crisp precision, stop-motion stepping, edge bleed, real lighting and shadows, and blocky low-res cells, respectively.
+
+Six of these seven were written the same way as the jellyfish/balloon/lighthouse scenes above: cold, off `AGENTS.md` alone, with a hard rule to touch nothing else in the repo. All six built, rendered, and passed self-verification (a settled-state still and a mid-motion still, per `AGENTS.md`'s own "Verifying your own work" section) without a fix needed. `pixel-look.ts` is the exception — written directly, alongside the `"pixel"` look itself.
+
 ## Vocabulary
 
 - `sketch.stroke(points, style)` — an open freehand line
@@ -98,6 +112,65 @@ export default film; // same CLI, same flags, same lint — a Film renders exact
 
 Each scene keeps its own size, background, and animation, entirely independent of the others — `Film` scales and centers each one into its own shared canvas (letterboxing whatever doesn't match) and sequences them with a `"cut"` (instant, default) or `"fade"` (crossfade over `transitionDuration`) between each. `hold` is how long a scene sits on its settled frame before the next takes over. There's no shared runtime state between scenes — each one draws its own world from scratch — so a recurring character across a longer sequence needs its own shared builder function reused across scene files (see `examples/story/_shared.ts`).
 
+## Camera — panning and zooming within a world bigger than the screen
+
+```ts
+const scene = sketch.scene({ width: 4200, height: 700, viewport: { width: 640, height: 440 }, background: "#f2d4a3" });
+const cam = scene.camera();
+cam.panTo(500, 400, { at: 0, duration: 0 });
+cam.follow(someNode, { at: 2, duration: 6 }); // tracks someNode's live position, mid-tween included
+cam.zoomTo(1.3, { at: 4, duration: 1 });       // independent of pan — both can run at once
+```
+
+`scene.camera()` returns `.panTo(x, y, opts)`, `.zoomTo(scale, opts)`, `.follow(node, opts)` — same `{at, duration, ease}` as node animations. This is what gives continuity a `Film` cut can't: one continuous scene the camera moves through, instead of independent scenes where nothing can just *keep going* because every cut starts an unrelated `Scene`. Build once, travel through the world — don't rebuild the same thing at every stop. A scene that never calls `.camera()` renders exactly as before, at no cost.
+
+`scene.layer(depth, children?)` returns a `Group` pinned to a depth plane for parallax — when the camera pans, each layer moves by a fraction of that pan based on its depth. `depth` `1` (the default, no `.layer()` call needed) moves 1:1 with the camera; `<1` recedes (background), `>1` pops forward (foreground). It's the flat 2D depth illusion, not literal 3D, and only visible alongside camera pan/follow — zoom applies uniformly across every layer. `background` always sits farthest back, and it takes a gradient now too: a color string, or `{ stops: [{offset, color}], direction? }`, one real SVG gradient instead of hand-authoring band rectangles to fake one.
+
+## 3D — genuine rotating solids, sketched
+
+[![a wooden die tumbles across a desk, rendered in the default hand-drawn look](docs/tumble.png)](docs/tumble.mp4)
+
+`sketch.box3d(w, h, d, style)` / `sketch.icosahedron3d(radius, style)` / `sketch.mesh3d(vertices, faces, style)` (custom — `[x,y,z]` vertices, faces `{indices, color?}` wound counterclockwise from outside) place a real 3D solid with the usual `moveTo`/`moveBy`. `.spin3d(rx, ry, rz, opts)` is an absolute-target rotation in degrees, chainable like `rotateTo`. Every face is rough.js-sketched and flat-shaded against a key light (`lightDir`, default upper-left); backface culling and painter's-algorithm depth sort run automatically every frame, correct for non-intersecting geometry. A spinning mesh rebuilds its projected silhouette every tick — costlier than a static 2D shape, so reach for it where rotation is actually the point, not as a default upgrade over a 2D shape.
+
+`docs/tumble.mp4` above is one authored scene combining this with the existing 2D vocabulary in the same frame: a `box3d` die tumbles and lands (squash-and-stretch on impact) next to a hand-sketched desk and shadow — proof that 2D and 3D compose, not just that a cube can spin on its own.
+
+## Rigging and walking — IK limbs instead of hand-tuned rotation
+
+```ts
+const leg = sketch.limb(150, 100, 40, 40, { color: "#241a12", weight: "bold" }, { bend: 1, capRadius: 10 });
+scene.add(leg);
+leg.ikTo(190, 130, { at: 0.5, duration: 0.4 }); // foot reaches for a target; the knee solves itself
+
+sketch.walk({
+  body: character.group,
+  legs: [{ limb: character.legL, hipX: 142 }, { limb: character.legR, hipX: 158 }],
+  steps: 8, stepLength: 100, groundY: 446,
+});
+```
+
+`sketch.limb(rootX, rootY, len1, len2, style, {bend, capRadius, capColor})` is a 2-bone IK chain — a leg or arm whose joint (knee/elbow) angle is solved every frame from an end-effector target, instead of a hand-authored `rotateTo` per segment. `.ikTo(x, y, opts)` moves that target, absolute, in the chain's own local space, and chains like any other animation call. `bend` (`1` or `-1`) picks which of the two valid joint solutions reads correctly for the limb's own orientation — check with a render. Give `len1 + len2` real headroom over the distance it actually needs to reach: a chain at or near full extension gets its target silently clamped onto the reachable radius, which distorts the effective foot position.
+
+`sketch.walk({body, legs: [{limb, hipX}, {limb, hipX}], steps, stepLength, groundY, stepDuration?, liftHeight?, bodyBob?, at?})` generates a whole bipedal gait — foot planting, lift-and-swing, body bob — over exactly two limbs, alternating which leg leads each step, and returns `{endAt}` so you can chain whatever comes after without hand-computing the total duration. `body` moves with `moveBy` (relative), so it composes with wherever the character already is. The planted leg's foot is provably fixed in world space for the whole time it's grounded — not just close at the keyframes — because its `ikTo` for each half-step shares the *exact same* `{at, duration, ease}` as the body's own `moveBy` for that half-step, with the negated delta, so both tweens trace the identical ease curve and cancel at every sampled instant, not just at the endpoints.
+
+## Look — the same scene, painted differently
+
+```ts
+const scene = sketch.scene({ width: 480, height: 420, background: "#7096c6", look: "flat" });
+```
+
+One authored scene — the same geometry, physics, and timing — can render through six different visual treatments, because "what happens" and "how it looks" are separate concerns here. `look` on `sketch.scene(...)` picks the treatment:
+
+- **`"ink"`** (default) — the hand-drawn look everything above assumes: sketchy jitter, line boil, a visible pen tip tracing `drawOn`.
+- **`"flat"`** — the identical scene rendered crisp and precise instead: no jitter, no boil, solid fills instead of hachure/cross-hatch, no pen tip. A flat vector motion-graphics look off the same pipeline.
+- **`"clay"`** — subtler, hand-molded jitter than ink (pressed, not sketched), solid fills, and — its real distinction — time itself quantized to a ~10fps hold instead of a continuous tween, a genuine stop-motion cadence applied at the seek level. Every downstream system (camera, `drawOn`, IK) needs no special handling for this; it just sees time move in discrete jumps.
+- **`"watercolor"`** — `"flat"`'s crisp geometry with a whole-frame SVG filter (fractal-noise displacement plus a soft blur) bleeding every edge like wet pigment on paper. A post-process over the same pipeline, not a different stroke style underneath.
+- **`"lit3d"`** — a genuinely separate rendering pipeline, WebGL/Three.js instead of SVG/rough.js, with real directional and ambient lighting and cast shadows, driven by the exact same `spin3d`/`moveTo`/`moveBy`/`scaleTo`/`squashTo` calls as every other look. Only `mesh3d` nodes (`box3d`/`icosahedron3d`/custom `mesh3d`) have a 3D representation — every 2D-only node in the same scene (a stroke, a blob, a limb, text) simply doesn't appear in a `"lit3d"` render, and the scene still lints and serializes normally either way. This is lit real-time 3D — one key light, one fill light, soft shadows — not a path tracer; it earns "lit 3D rendering," not "photorealistic."
+- **`"pixel"`** — `"flat"`'s crisp geometry again, plus a raster post-process applied to every captured frame after the browser screenshot: downsample to a low-resolution grid, then scale back up with nearest-neighbor (no smoothing), so every cell lands as one flat-colored block. This happens outside the DOM entirely (in the CLI, on the captured PNG bytes, via `ffmpeg`), not as an SVG filter like watercolor's — the only look that needs `ffmpeg` on `PATH` outside of `--video`.
+
+[![the same die, same tumble, same timing, rendered through the lit3d WebGL pipeline instead](docs/tumble-lit3d.png)](docs/tumble-lit3d.mp4)
+
+That's the same authored file as `docs/tumble.mp4` above with one line changed (`scene.look = "lit3d"`) — the die keeps its exact tumble and timing, and everything else about how it's painted changes. Nothing about how you *author* a scene depends on `look` — every primitive, animation, and everything documented above applies the same regardless. `look` is a rendering decision, not an authoring one.
+
 ## Self-verification, without burning tokens
 
 Rendering a full screenshot after every edit is slow and expensive. sketchling checks in three tiers, cheapest first:
@@ -132,7 +205,7 @@ Early and opinionated by design: v1 targets one aesthetic (flat, hand-drawn line
 
 If you're using [Claude Code](https://claude.com/claude-code) inside this repo, `.claude/skills/sketchling/` is available and teaches the vocabulary directly — no README round-trip needed.
 
-Not yet built: more shape helpers beyond `arrow`/`speechBubble` (a star, a checkmark) as thin geometric compositions of the existing primitives, not a curated asset library — that's a deliberate non-goal, see "Why" above; camera-level composition within a single scene (pan/zoom), as opposed to `Film`'s scene-to-scene cuts.
+Not yet built: more shape helpers beyond `arrow`/`speechBubble` (a star, a checkmark) as thin geometric compositions of the existing primitives, not a curated asset library — that's a deliberate non-goal, see "Why" above; secondary motion (springs on an ear, a tail, hair) and particle systems, the next layer above rigid IK limbs; more `look` treatments beyond the current six (cel-shaded); an auto-rig that derives a `sketch.limb` skeleton from a drawn silhouette instead of hand-placed joints.
 
 ## Contributing
 
