@@ -41,7 +41,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && node scripts/build-harness.mjs",
     "prepublishOnly": "npm run build",
     "demo": "npm run build && node bin/sketchling.js render examples/keyhole-laptop.ts --out preview.png"
   },

@@ -144,15 +144,10 @@ function lintRenderable(renderable: Renderable): LintFinding[] {
 }
 
 async function buildHarness(serialized: Renderable, workdir: string): Promise<string> {
-  const runtimeBundlePath = path.join(workdir, "runtime.js");
-  await esbuild.build({
-    entryPoints: [path.join(pkgRoot, "src/render/harness-entry.ts")],
-    bundle: true,
-    format: "iife",
-    platform: "browser",
-    outfile: runtimeBundlePath,
-  });
-  const runtimeJs = readFileSync(runtimeBundlePath, "utf-8");
+  // Pre-built by `npm run build` (scripts/build-harness.mjs) and shipped in dist/ — reading
+  // it here, rather than esbuild-bundling src/render/harness-entry.ts on every render call,
+  // is what lets this work from a published install, which has no src/ directory at all.
+  const runtimeJs = readFileSync(path.join(pkgRoot, "dist/harness.js"), "utf-8");
   const html = `<!doctype html><html><head><meta charset="utf-8"></head>
 <body style="margin:0">
 <div id="stage"></div>
