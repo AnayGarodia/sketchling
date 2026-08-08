@@ -27,7 +27,7 @@ const ENERGY_MULT: Record<string, number> = { calm: 0.7, quick: 1, frantic: 1.6 
  * gradient (only meaningful on "solid" — hachure/cross-hatch/zigzag/dots are procedural
  * line strokes with no continuous area to gradient across). */
 export function effectiveFillStyle(style: NodeStyle, look: RenderLook): string {
-  const crisp = look === "flat" || look === "watercolor" || look === "pixel";
+  const crisp = look === "flat" || look === "watercolor" || look === "pixel" || look === "grain";
   const clay = look === "clay";
   return crisp || clay ? "solid" : style.fill?.style ?? "hachure";
 }
@@ -45,7 +45,7 @@ export function roughOptionsFor(
   closed: boolean,
   look: RenderLook = "ink"
 ): Record<string, unknown> {
-  const crisp = look === "flat" || look === "watercolor" || look === "pixel";
+  const crisp = look === "flat" || look === "watercolor" || look === "pixel" || look === "grain";
   const clay = look === "clay";
   const looseness = style.looseness ?? 0.3;
   const energyMult = ENERGY_MULT[style.energy ?? "quick"] ?? 1;

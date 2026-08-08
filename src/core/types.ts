@@ -203,7 +203,12 @@ export type SceneBackground = string | { stops: GradientStop[]; direction?: "hor
 //   silhouette outline (a second back-face-only mesh scaled up ~4%, parented so it inherits
 //   the same animated transform for free). A shading variant of lit3d, not a separate
 //   pipeline; see renderer3d.ts.
-export type RenderLook = "ink" | "flat" | "clay" | "watercolor" | "lit3d" | "pixel" | "toon3d";
+// "grain": PROTOTYPE, not yet documented/gallery'd like the others — flat's crisp geometry
+// plus a whole-frame film-grain/paper-texture SVG filter (luminance-noise blended over the
+// source via feBlend "overlay"), the same "filter over the same pipeline" technique
+// watercolor already uses, aimed at a different target (fine aged-paper texture instead of
+// wet-media bleed).
+export type RenderLook = "ink" | "flat" | "clay" | "watercolor" | "lit3d" | "pixel" | "toon3d" | "grain";
 
 export interface SerializedScene {
   kind: "scene";

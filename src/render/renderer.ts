@@ -143,6 +143,8 @@ export function mount(scene: SerializedScene, container: HTMLElement): MountResu
   const look = scene.look ?? "ink";
   if (look === "watercolor") {
     svg.setAttribute("filter", `url(#${buildWatercolorFilter(defs)})`);
+  } else if (look === "grain") {
+    svg.setAttribute("filter", `url(#${buildGrainFilter(defs)})`);
   }
 
   container.innerHTML = "";
@@ -214,6 +216,52 @@ function buildWatercolorFilter(defs: SVGDefsElement): string {
   blur.setAttribute("in", "displaced");
   blur.setAttribute("stdDeviation", "0.7");
   filter.appendChild(blur);
+
+  defs.appendChild(filter);
+  return id;
+}
+
+/** PROTOTYPE (look: "grain", not yet documented like the other looks): a whole-frame
+ * film-grain/paper-texture filter, the same "SVG filter over flat's crisp geometry"
+ * technique buildWatercolorFilter uses, aimed at a different target — fine aged-paper
+ * texture instead of wet-media bleed. feTurbulence's noise is converted to a pure-black
+ * layer whose ALPHA (not color) varies with noise brightness (the color-matrix's last row
+ * sums R+G+B into alpha, scaled down to control grain intensity, with R/G/B rows left at
+ * zero), then feBlend "overlay" combines that speckle with the source — darkens shadows
+ * and lightens highlights slightly, the way real grain modulates an image, rather than a
+ * flat semi-transparent noise layer sitting on top of it. */
+function buildGrainFilter(defs: SVGDefsElement): string {
+  const id = "sk-grain";
+  const filter = document.createElementNS(SVG_NS, "filter");
+  filter.setAttribute("id", id);
+  filter.setAttribute("x", "0%");
+  filter.setAttribute("y", "0%");
+  filter.setAttribute("width", "100%");
+  filter.setAttribute("height", "100%");
+
+  const turbulence = document.createElementNS(SVG_NS, "feTurbulence");
+  turbulence.setAttribute("type", "fractalNoise");
+  turbulence.setAttribute("baseFrequency", "0.85");
+  turbulence.setAttribute("numOctaves", "2");
+  turbulence.setAttribute("seed", "5");
+  turbulence.setAttribute("result", "noise");
+  filter.appendChild(turbulence);
+
+  const toAlpha = document.createElementNS(SVG_NS, "feColorMatrix");
+  toAlpha.setAttribute("in", "noise");
+  toAlpha.setAttribute("type", "matrix");
+  toAlpha.setAttribute(
+    "values",
+    "0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0.16 0.16 0.16 0 0"
+  );
+  toAlpha.setAttribute("result", "grain");
+  filter.appendChild(toAlpha);
+
+  const blend = document.createElementNS(SVG_NS, "feBlend");
+  blend.setAttribute("in", "grain");
+  blend.setAttribute("in2", "SourceGraphic");
+  blend.setAttribute("mode", "overlay");
+  filter.appendChild(blend);
 
   defs.appendChild(filter);
   return id;
