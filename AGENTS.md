@@ -86,6 +86,10 @@ cam.zoomTo(1.3, { at: 4, duration: 1 });       // independent of pan — both ca
 
 **3D**: `sketch.box3d(w, h, d, style)` / `sketch.icosahedron3d(radius, style)` / `sketch.mesh3d(vertices, faces, style)` (custom — `[x,y,z]` vertices, faces are `{indices, color?}` wound CCW from outside) return a node placed with the usual `moveTo`/`moveBy`. `.spin3d(rx, ry, rz, opts)` is an absolute-target rotation in degrees, chainable like `rotateTo`. Every face is rough.js-sketched and flat-shaded against a key light (`lightDir`, defaults upper-left); backface culling and painter's-algorithm depth sort run automatically every frame — only correct for non-intersecting geometry. A spinning mesh rebuilds its projected silhouette every tick (costlier than a static 2D shape), so reach for it where rotation is the point, not as a default upgrade.
 
+**IK limbs and walking**: `sketch.limb(rootX, rootY, len1, len2, style, {bend, capRadius, capColor})` is a 2-bone chain (leg/arm) whose joint angle is solved every frame from an end-effector target — `.ikTo(x, y, opts)` moves that target (absolute, local space), instead of hand-authoring a rotateTo per segment. Give `len1+len2` real headroom over the distance it needs to reach (a chain at full extension gets its target silently clamped, which reads as a subtle pop). `sketch.walk({body, legs: [{limb, hipX}, {limb, hipX}], steps, stepLength, groundY, stepDuration?, liftHeight?, bodyBob?, at?})` generates a full bipedal gait — foot planting, lift-and-swing, body bob — over two limbs; returns `{endAt}` to chain what follows.
+
+**Look**: `sketch.scene({..., look: "ink" | "flat" })` — the same authored scene (geometry, physics, timing) painted differently. Default `"ink"` is the hand-drawn treatment (sketchy jitter, line boil, a visible pen tip during drawOn); `"flat"` renders the identical scene crisp and precise instead — no jitter, no boil, solid fills, no pen tip. One authored scene, not a rewrite, to switch looks.
+
 ### Film — cutting scenes together
 
 ```ts

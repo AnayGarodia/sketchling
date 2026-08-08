@@ -3,7 +3,7 @@ import gsap from "gsap";
 import { EasePack, RoughEase } from "gsap/EasePack";
 import { MorphSVGPlugin } from "gsap/MorphSVGPlugin";
 import { MotionPathPlugin } from "gsap/MotionPathPlugin";
-import type { CameraOp, Renderable, SerializedFilm, SerializedNode, SerializedScene } from "../core/types.js";
+import type { CameraOp, RenderLook, Renderable, SerializedFilm, SerializedNode, SerializedScene } from "../core/types.js";
 import { bboxOfPoints, pathFromPoints, unionBBox, type BBox } from "../core/geometry.js";
 import { rotatePoint, project, faceNormal, normalize, subtract, dot, shadeHex, type Vec3 } from "../core/geometry3d.js";
 import { solveTwoBoneIK } from "../core/ik.js";
@@ -42,6 +42,13 @@ const BOIL_VARIANTS = 3;
 const BOIL_INTERVAL = 0.11;
 
 let maskIdCounter = 0;
+
+// The current scene's visual treatment, set once at the top of buildSceneInto — safe as a
+// module-level variable because a scene builds fully synchronously within one
+// buildSceneInto call (no interleaving with another scene's build, single vs. Film alike).
+// Read wherever roughOptionsFor is called and to gate look-specific behaviors (boil, the
+// drawOn pen tip) without threading a new parameter through every builder function.
+let currentLook: RenderLook = "ink";
 
 interface BoilTarget {
   variants: SVGGElement[];
@@ -208,6 +215,8 @@ function buildSceneInto(
   tl: gsap.core.Timeline,
   boilTargets: BoilTarget[]
 ): (t: number) => void {
+  currentLook = scene.look ?? "ink";
+
   // Every depth in use gets its own group, appended in ascending depth order so farther
   // (smaller-depth) layers land behind nearer ones in the SVG paint order. A scene that
   // never calls scene.layer() ends up with exactly two groups (backdrop + the depth-1
@@ -430,9 +439,12 @@ function buildNode(
 
     // A node that will later morphTo() gets a single static rendering instead of the usual
     // boil variants — cycling to an un-morphed variant mid-boil would make the morphed
-    // shape visibly snap back to its original geometry every ~0.1s.
+    // shape visibly snap back to its original geometry every ~0.1s. A non-"ink" look has
+    // no jitter to re-roll in the first place (roughness/bowing are already 0), so it gets
+    // a single static rendering too — extra boil variants of an identical path are wasted
+    // DOM, not a visual difference.
     const hasMorph = node.animations.some((a) => a.kind === "morphTo");
-    const variantCount = hasMorph ? 1 : BOIL_VARIANTS;
+    const variantCount = hasMorph || currentLook !== "ink" ? 1 : BOIL_VARIANTS;
 
     // Wrapped in its own group so drawOn can mask the whole rendered shape (stroke pass(es)
     // AND fill/hachure alike) as one unit, rather than needing to classify rough.js's
@@ -441,7 +453,7 @@ function buildNode(
     const artGroup = document.createElementNS(SVG_NS, "g");
     const variants: SVGGElement[] = [];
     for (let i = 0; i < variantCount; i++) {
-      const opts = roughOptionsFor(node.style ?? {}, baseSeed + i * 7919, !!node.closed);
+      const opts = roughOptionsFor(node.style ?? {}, baseSeed + i * 7919, !!node.closed, currentLook);
       const rendered = rc.path(d, opts);
       const variantWrap = document.createElementNS(SVG_NS, "g");
       variantWrap.appendChild(rendered);
@@ -557,7 +569,8 @@ function buildMesh3D(
       const opts = roughOptionsFor(
         { color: strokeColor, weight: node.style?.weight, looseness: node.style?.looseness, energy: node.style?.energy },
         baseSeed + i * 7919,
-        true
+        true,
+        currentLook
       );
       opts.fill = r.color;
       opts.fillStyle = "solid";
@@ -632,14 +645,15 @@ function buildLimb(
       false,
       smooth
     );
-    const opts = roughOptionsFor(node.style ?? {}, baseSeed, false);
+    const opts = roughOptionsFor(node.style ?? {}, baseSeed, false, currentLook);
     limbGroup.appendChild(rc.path(d, opts));
 
     if (capRadius > 0) {
       const capOpts = roughOptionsFor(
         { color: capColor, weight: node.style?.weight, looseness: node.style?.looseness, energy: node.style?.energy },
         baseSeed + 7919,
-        true
+        true,
+        currentLook
       );
       capOpts.fill = capColor;
       capOpts.fillStyle = "solid";
@@ -804,7 +818,7 @@ function applyMorphTo(
   const closed = !!node.closed;
   const targetD = pathFromPoints(targetPoints, closed, smooth);
   const baseSeed = sceneSeed ^ node.seed;
-  const opts = roughOptionsFor(node.style ?? {}, baseSeed, closed);
+  const opts = roughOptionsFor(node.style ?? {}, baseSeed, closed, currentLook);
   const targetRendered = rc.path(targetD, opts);
 
   const hiddenHolder = document.createElementNS(SVG_NS, "g");
@@ -965,9 +979,14 @@ function applyDrawOn(
     at
   );
 
-  const fade = Math.min(0.08, duration * 0.2);
-  tl.fromTo(tip, { opacity: 0 }, { opacity: 1, duration: fade }, at);
-  tl.to(tip, { opacity: 0, duration: fade }, at + duration - fade);
+  // A visible pen tip is an "ink" affordance — a flat/precise look traces the same mask
+  // reveal with no hand implied, so the tip stays at its default (hidden) opacity, set
+  // inside makePenTip, rather than being created differently per look.
+  if (currentLook === "ink") {
+    const fade = Math.min(0.08, duration * 0.2);
+    tl.fromTo(tip, { opacity: 0 }, { opacity: 1, duration: fade }, at);
+    tl.to(tip, { opacity: 0, duration: fade }, at + duration - fade);
+  }
 
   if (scribble) {
     // Interior colors in row by row, trailing the trace like a hand catching up to its own

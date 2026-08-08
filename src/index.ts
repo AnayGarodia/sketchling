@@ -20,6 +20,7 @@ export type {
   TimingOpts,
   AnimOp,
   Mesh3DFaceData,
+  RenderLook,
   SerializedScene,
   SerializedNode,
   SerializedFilm,

@@ -114,6 +114,35 @@ die.spin3d(360, 720, 0, { at: 0.4, duration: 2.2, ease: "sine.inOut" }); // abso
 - Backface culling and painter's-algorithm depth sorting happen automatically, every frame — faces facing away from the camera aren't drawn, and visible faces paint back-to-front so nearer ones correctly occlude farther ones. This assumes non-intersecting geometry: two meshes that interpenetrate, or a mesh whose own faces cross each other, have no depth order painter's-algorithm can resolve correctly.
 - A rotating mesh's whole silhouette changes every frame (which faces are even visible depends on the current rotation), so unlike a 2D shape's `cleanPathD` (computed once at build time), a mesh's paths are rebuilt on every tick its `spin3d` tween is live. That's more render cost per mesh than a static 2D shape — reach for 3D where the rotation itself is the point (a die tumbling, a globe spinning, a logo turning into place), not as a blanket upgrade for shapes that were never meant to turn.
 
+## Rigging and walking — IK limbs instead of hand-tuned rotation
+
+```ts
+const leg = sketch.limb(150, 100, 40, 40, { color: "#241a12", weight: "bold" }, { bend: 1, capRadius: 10 });
+scene.add(leg);
+leg.ikTo(190, 130, { at: 0.5, duration: 0.4 }); // foot reaches for a target; the knee solves itself
+
+// or generate a whole gait at once:
+sketch.walk({
+  body: character.group,
+  legs: [{ limb: character.legL, hipX: 142 }, { limb: character.legR, hipX: 158 }],
+  steps: 8, stepLength: 100, groundY: 446,
+});
+```
+
+- `sketch.limb(rootX, rootY, len1, len2, style, {bend, capRadius, capColor})` is a 2-bone IK chain (a leg or arm): two segments whose joint (knee/elbow) angle is solved every frame from an end-effector target, instead of a hand-authored `rotateTo` per segment. `.ikTo(x, y, opts)` moves that target — absolute, in the same local coordinate space as `rootX/rootY` — and is chainable like any other animation call. `bend` (1 or -1) picks which of the two valid knee/elbow solutions; whichever reads correctly for the limb's own orientation, check with a render. `capRadius > 0` draws a foot/hand blob at the end.
+- **Give the chain real reach headroom.** `len1 + len2` should comfortably exceed the distance it actually needs to cover — a chain at or near full extension gets its target silently clamped onto the reachable radius the moment it's asked to reach slightly further, which distorts the effective foot position (and, in a walk cycle, breaks the planted-foot-doesn't-slide guarantee below). Some bend at rest reads as more natural anyway.
+- `sketch.walk({body, legs: [{limb, hipX}, {limb, hipX}], steps, stepLength, groundY, stepDuration?, liftHeight?, bodyBob?, at?})` generates a full bipedal gait — foot planting, lift-and-swing, body bob — over exactly two limbs, alternating which leads each step. Returns `{endAt}` so you can chain whatever comes after the walk without hand-computing the total duration. `body` is driven with `moveBy` (relative), so it composes with wherever the character already is.
+- The planted (trailing) leg's foot is provably fixed in world space for the whole time it's grounded, not just close at the keyframes — it works by giving that foot's `ikTo` for each half-step the *exact same* `{at, duration, ease}` as the body's own `moveBy` for that half-step, with the negated delta, so both tweens trace the identical ease curve and cancel at every sampled instant. Trust this rather than re-deriving your own countershift math for a custom gait.
+
+## Look — the same scene, painted differently
+
+```ts
+const scene = sketch.scene({ width: 480, height: 420, background: "#7096c6", look: "flat" });
+```
+
+- `look` on `sketch.scene(...)` picks the visual treatment: `"ink"` (default) is the hand-drawn look everything above assumes — sketchy jitter, line boil, a visible pen tip tracing `drawOn`. `"flat"` renders the *identical* authored scene — same geometry, same physics, same timing — crisp and precise instead: no jitter, no boil, solid fills instead of hachure/cross-hatch, no pen tip.
+- Nothing about how you author a scene changes based on `look` — every primitive, animation, and this whole reference applies the same either way. `look` is a rendering decision, not an authoring one.
+
 ## Film — cutting scenes together
 
 ```ts

@@ -116,6 +116,13 @@ export interface GradientStop {
 
 export type SceneBackground = string | { stops: GradientStop[]; direction?: "horizontal" | "vertical" };
 
+// The scene's visual treatment — what turns an authored shape into pixels, independent of
+// what that shape IS (its geometry, physics, timing are the same regardless). "ink"
+// (default): hand-drawn rough.js sketchiness, line boil, a visible pen tip during drawOn.
+// "flat": the same shapes and timing rendered crisp and precise instead — no jitter, no
+// boil, solid fills, no pen tip — a flat vector motion-graphics look off the same pipeline.
+export type RenderLook = "ink" | "flat";
+
 export interface SerializedScene {
   kind: "scene";
   // The world: everything is authored/positioned in this coordinate space, and the
@@ -129,6 +136,7 @@ export interface SerializedScene {
   viewportHeight: number;
   background: SceneBackground;
   seed: number;
+  look: RenderLook;
   children: SerializedNode[];
   camera: CameraOp[];
 }

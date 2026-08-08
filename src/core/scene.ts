@@ -4,7 +4,7 @@ import { Group } from "./group.js";
 import { Camera } from "./camera.js";
 import { Mesh3D } from "./mesh3d.js";
 import { Limb } from "./limb.js";
-import type { SceneBackground, SerializedNode, SerializedScene } from "./types.js";
+import type { RenderLook, SceneBackground, SerializedNode, SerializedScene } from "./types.js";
 import { hashSeed } from "./geometry.js";
 
 export interface SceneOptions {
@@ -18,6 +18,10 @@ export interface SceneOptions {
   // one SVG linearGradient, not hand-sketched — a backdrop is painted, not pen-traced.
   background?: SceneBackground;
   seed?: number | string;
+  // The scene's visual treatment — see RenderLook. Default "ink" renders exactly as
+  // before; every other look is the same authored scene (geometry, physics, timing)
+  // painted differently.
+  look?: RenderLook;
 }
 
 export class Scene {
@@ -27,6 +31,7 @@ export class Scene {
   viewportHeight: number;
   background: SceneBackground;
   seed: number;
+  look: RenderLook;
   children: SketchNode[] = [];
   private _camera?: Camera;
 
@@ -37,6 +42,7 @@ export class Scene {
     this.viewportHeight = opts.viewport?.height ?? this.height;
     this.background = opts.background ?? "#faf7f0";
     this.seed = typeof opts.seed === "string" ? hashSeed(opts.seed) : opts.seed ?? 1;
+    this.look = opts.look ?? "ink";
   }
 
   add(node: SketchNode): SketchNode {
@@ -79,6 +85,7 @@ export class Scene {
       viewportHeight: this.viewportHeight,
       background: this.background,
       seed: this.seed,
+      look: this.look,
       children: this.children.map(serializeNode),
       camera: this._camera?.ops ?? [],
     };
