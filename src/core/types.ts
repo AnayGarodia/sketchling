@@ -85,7 +85,7 @@ export interface Mesh3DFaceData {
 
 export interface SerializedNode {
   id: string;
-  type: "stroke" | "blob" | "group" | "mesh3d" | "limb";
+  type: "stroke" | "blob" | "group" | "mesh3d" | "limb" | "connector";
   points?: Point[];
   closed?: boolean;
   style?: NodeStyle;
@@ -116,6 +116,15 @@ export interface SerializedNode {
   limbCapColor?: string;
   limbTargetX?: number;
   limbTargetY?: number;
+  // connector only: a fixed anchor point (absolute canvas space, like limbRootX/Y) and the
+  // id of the node whose live resolved position (its authored bbox center plus whatever its
+  // own animations — including a springTo — currently add, the same "local offset" space
+  // camera.follow and springTo both read) it draws a bending line toward, rebuilt fresh
+  // every seek from those two live points — the 2D fields above (points/closed) are unused
+  // on a connector node, same convention as mesh3d/limb.
+  connectorAnchorX?: number;
+  connectorAnchorY?: number;
+  connectorTargetId?: string;
 }
 
 export interface GradientStop {
@@ -148,8 +157,10 @@ export type SceneBackground = string | { stops: GradientStop[]; direction?: "hor
 //   look. Requires ffmpeg on PATH, same as --video already does.
 // - "toon3d": lit3d's exact pipeline (same camera, lights, shadows, mesh3d-only scope) with
 //   a stepped/cel gradient map on each mesh's material instead of a continuous PBR one —
-//   flat toon bands instead of a smooth roughness falloff. A shading variant of lit3d, not
-//   a separate pipeline; see renderer3d.ts.
+//   flat toon bands instead of a smooth roughness falloff — plus a black inverted-hull
+//   silhouette outline (a second back-face-only mesh scaled up ~4%, parented so it inherits
+//   the same animated transform for free). A shading variant of lit3d, not a separate
+//   pipeline; see renderer3d.ts.
 export type RenderLook = "ink" | "flat" | "clay" | "watercolor" | "lit3d" | "pixel" | "toon3d";
 
 export interface SerializedScene {

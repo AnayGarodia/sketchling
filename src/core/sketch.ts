@@ -8,6 +8,8 @@ import { buildArrow, buildSpeechBubble, type ArrowOptions, type SpeechBubbleOpti
 import { Mesh3D, box3d, icosahedron3d } from "./mesh3d.js";
 import { Limb, limb, type LimbOpts } from "./limb.js";
 import { walk, type WalkOptions, type WalkResult } from "./gait.js";
+import { Connector } from "./connector.js";
+import type { SketchNode } from "./node.js";
 import type { NodeStyle, Point, Point3 } from "./types.js";
 
 export const sketch = {
@@ -78,5 +80,14 @@ export const sketch = {
    * the walk without hand-computing the total duration themselves. */
   walk(opts: WalkOptions): WalkResult {
     return walk(opts);
+  },
+  /** A stroke that rebuilds itself every seek to run from a fixed `anchor` to `target`'s own
+   * live position, bowed into a gentle curve — pair it with a `springTo`'d node to get an
+   * actual bendy ear/antenna/tail, since `springTo` alone moves a node's position but can't
+   * visually attach it to anything. No `drawOn` (there's no stable path length to reveal
+   * against geometry that changes every frame) and no line-boil (it already fully rebuilds
+   * each seek); `fadeTo`/`moveTo`/etc. on its own transform still work normally. */
+  connector(anchor: Point, target: SketchNode, style: NodeStyle = {}): Connector {
+    return new Connector(anchor, target, style);
   },
 };

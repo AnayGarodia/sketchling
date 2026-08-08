@@ -94,6 +94,7 @@ export function mountLit3D(scene: SerializedScene, container: HTMLElement): Moun
 
   for (const { node } of meshEntries) {
     const mesh = buildMeshObject(node, toonGradientMap);
+    if (isToon) mesh.add(buildToonOutline(mesh.geometry));
     threeScene.add(mesh);
     objects.push(mesh);
     driveNodeAnimations(mesh, node, tl, height);
@@ -159,6 +160,22 @@ function buildToonGradientMap(): THREE.DataTexture {
   texture.minFilter = THREE.NearestFilter;
   texture.needsUpdate = true;
   return texture;
+}
+
+/** The standard inverted-hull outline trick: a second mesh sharing the same geometry,
+ * rendered back-face-only and scaled up a few percent, so what shows through is a thin black
+ * silhouette rim around the real (front-face) mesh — the ink outline a cel-shaded illustration
+ * needs, which the gradient-map banding alone doesn't produce. Added as a *child* of the toon
+ * mesh specifically (not a sibling in threeScene) so it inherits every animated transform
+ * (spin3d, moveTo, scaleTo, squashTo — whatever driveNodeAnimations tweens on the parent) for
+ * free through Three.js's own scene graph, with no separate GSAP tween to keep in sync. Shares
+ * the parent's BufferGeometry by reference (no clone) since it only reads position data. */
+function buildToonOutline(geometry: THREE.BufferGeometry): THREE.Mesh {
+  const outline = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ color: 0x0d0d0d, side: THREE.BackSide }));
+  outline.scale.setScalar(1.04);
+  outline.castShadow = false;
+  outline.receiveShadow = false;
+  return outline;
 }
 
 /** Non-indexed geometry with one uniform-colored vertex triple per triangle — flat per-face

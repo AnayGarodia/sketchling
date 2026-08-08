@@ -5,7 +5,7 @@ let autoId = 0;
 
 export abstract class SketchNode {
   readonly id: string;
-  abstract readonly type: "stroke" | "blob" | "group" | "mesh3d" | "limb";
+  abstract readonly type: "stroke" | "blob" | "group" | "mesh3d" | "limb" | "connector";
   style: NodeStyle;
   transform: Transform = { x: 0, y: 0, scale: 1, rotation: 0, opacity: 1 };
   animations: AnimOp[] = [];

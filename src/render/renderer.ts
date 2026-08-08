@@ -3,7 +3,7 @@ import gsap from "gsap";
 import { EasePack, RoughEase } from "gsap/EasePack";
 import { MorphSVGPlugin } from "gsap/MorphSVGPlugin";
 import { MotionPathPlugin } from "gsap/MotionPathPlugin";
-import type { AnimOp, CameraOp, RenderLook, Renderable, SerializedFilm, SerializedNode, SerializedScene } from "../core/types.js";
+import type { AnimOp, CameraOp, NodeStyle, RenderLook, Renderable, SerializedFilm, SerializedNode, SerializedScene } from "../core/types.js";
 import { bboxOfPoints, pathFromPoints, unionBBox, type BBox } from "../core/geometry.js";
 import { rotatePoint, project, faceNormal, normalize, subtract, dot, shadeHex, type Vec3 } from "../core/geometry3d.js";
 import { solveTwoBoneIK } from "../core/ik.js";
@@ -60,6 +60,15 @@ interface PendingSpring {
   anchorX: number;
   anchorY: number;
   op: Extract<AnimOp, { kind: "springTo" }>;
+}
+
+interface PendingConnector {
+  artGroup: SVGGElement;
+  anchorX: number;
+  anchorY: number;
+  targetId: string;
+  style: NodeStyle;
+  baseSeed: number;
 }
 
 export interface MountResult {
@@ -300,16 +309,23 @@ function buildSceneInto(
   applyBackground(scene, layerGroups.get(BACKDROP_DEPTH)!);
 
   const pendingSprings: PendingSpring[] = [];
+  const pendingConnectors: PendingConnector[] = [];
   for (const node of scene.children) {
     const depth = node.type === "group" && node.depth !== undefined ? node.depth : DEFAULT_LAYER_DEPTH;
-    buildNode(node, layerGroups.get(depth)!, rc, tl, scene.seed, boilTargets, pendingSprings);
+    buildNode(node, layerGroups.get(depth)!, rc, tl, scene.seed, boilTargets, pendingSprings, pendingConnectors);
   }
 
   const springsPostSeek = buildSprings(pendingSprings, scene, tl, container);
+  // Connectors read a target's live resolved position the same way buildSprings' own
+  // drivers do — runs after springsPostSeek specifically so a connector tracking a
+  // springTo'd node sees that spring's position already resolved for this frame, not last
+  // frame's stale one.
+  const connectorsPostSeek = buildConnectors(pendingConnectors, scene, container, rc);
   const cameraPostSeek = applyCameraLayers(layerGroups, scene, tl, container);
   return (t: number) => {
     cameraPostSeek(t);
     springsPostSeek(t);
+    connectorsPostSeek(t);
   };
 }
 
@@ -599,6 +615,69 @@ function collectSprings(node: SerializedNode, g: SVGGElement, pendingSprings: Pe
   pendingSprings.push({ g, anchorX, anchorY, op });
 }
 
+/** Redraws every connector's path fresh each seek, from its own fixed anchor to its
+ * target's live resolved position — the same "authored bbox center plus whatever the
+ * target's own animations currently add" read buildSprings' drivers and camera.follow both
+ * use, so a connector tracking a springTo'd node sees the exact position that node is
+ * actually at this frame, not an approximation. Bowed through one synthetic midpoint
+ * (offset perpendicular to the anchor→target line by a fraction of its length) rather than
+ * a straight segment, so it reads as a flexible rod bending under the tip's own motion
+ * instead of a rigid rotating stick — a pure function of the two live points each call, so
+ * identical (anchor, target position) at a given t always redraws byte-identical (same
+ * `d` string into rough.js at a fixed per-node seed). */
+function buildConnectors(
+  pendingConnectors: PendingConnector[],
+  scene: SerializedScene,
+  container: SVGElement,
+  rc: ReturnType<typeof rough.svg>
+): (t: number) => void {
+  if (pendingConnectors.length === 0) return () => {};
+
+  const targets = pendingConnectors.map((p) => {
+    const targetNode = findSerializedNodeById(scene.children, p.targetId);
+    const bbox = targetNode ? computeNodeBBox(targetNode) : null;
+    return {
+      g: container.querySelector(`[data-id="${p.targetId}"]`) as SVGGElement | null,
+      anchorX: bbox ? (bbox.minX + bbox.maxX) / 2 : 0,
+      anchorY: bbox ? (bbox.minY + bbox.maxY) / 2 : 0,
+    };
+  });
+
+  return () => {
+    for (let i = 0; i < pendingConnectors.length; i++) {
+      const p = pendingConnectors[i];
+      const target = targets[i];
+      const tgx = target.g ? ((gsap.getProperty(target.g, "x") as number) || 0) : 0;
+      const tgy = target.g ? ((gsap.getProperty(target.g, "y") as number) || 0) : 0;
+      const tipX = target.anchorX + tgx;
+      const tipY = target.anchorY + tgy;
+
+      while (p.artGroup.firstChild) p.artGroup.removeChild(p.artGroup.firstChild);
+
+      const dx = tipX - p.anchorX;
+      const dy = tipY - p.anchorY;
+      const len = Math.hypot(dx, dy) || 1;
+      const nx = -dy / len;
+      const ny = dx / len;
+      const bow = len * 0.15;
+      const midX = (p.anchorX + tipX) / 2 + nx * bow;
+      const midY = (p.anchorY + tipY) / 2 + ny * bow;
+
+      const d = pathFromPoints(
+        [
+          [p.anchorX, p.anchorY],
+          [midX, midY],
+          [tipX, tipY],
+        ],
+        false,
+        true
+      );
+      const opts = roughOptionsFor(p.style, p.baseSeed, false, currentLook);
+      p.artGroup.appendChild(rc.path(d, opts));
+    }
+  };
+}
+
 function buildNode(
   node: SerializedNode,
   parent: SVGElement,
@@ -606,13 +685,32 @@ function buildNode(
   tl: gsap.core.Timeline,
   sceneSeed: number,
   boilTargets: BoilTarget[],
-  pendingSprings: PendingSpring[]
+  pendingSprings: PendingSpring[],
+  pendingConnectors: PendingConnector[]
 ): void {
   const g = document.createElementNS(SVG_NS, "g");
   g.setAttribute("data-id", node.id);
   applyInitialTransform(g, node);
   parent.appendChild(g);
   collectSprings(node, g, pendingSprings);
+
+  if (node.type === "connector") {
+    const artGroup = document.createElementNS(SVG_NS, "g");
+    g.appendChild(artGroup);
+    pendingConnectors.push({
+      artGroup,
+      anchorX: node.connectorAnchorX ?? 0,
+      anchorY: node.connectorAnchorY ?? 0,
+      targetId: node.connectorTargetId ?? "",
+      style: node.style ?? {},
+      baseSeed: sceneSeed ^ node.seed,
+    });
+    // Same reasoning as mesh3d/limb below: moveTo/moveBy/rotateTo/scaleTo/fadeTo/squashTo
+    // still animate `g`'s own flat transform normally — the connector's actual path
+    // geometry (anchor-to-target) is rebuilt separately, in buildConnectors' postSeek.
+    applyAnimations(g, node, tl, null, 0, false, null, rc, sceneSeed);
+    return;
+  }
 
   if (node.type === "mesh3d") {
     buildMesh3D(node, g, rc, tl, sceneSeed);
@@ -678,7 +776,7 @@ function buildNode(
 
   if (node.children) {
     for (const child of node.children) {
-      buildNode(child, g, rc, tl, sceneSeed, boilTargets, pendingSprings);
+      buildNode(child, g, rc, tl, sceneSeed, boilTargets, pendingSprings, pendingConnectors);
     }
   }
 
