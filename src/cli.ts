@@ -186,7 +186,7 @@ async function captureFrame(page: Page, cdp: CDPSession, at: number, outPath: st
 
   const clip = crop
     ? await page.evaluate(() => {
-        const el = document.querySelector("#stage svg") as SVGSVGElement;
+        const el = document.querySelector("#stage svg, #stage canvas") as SVGSVGElement | HTMLCanvasElement;
         const r = el.getBoundingClientRect();
         return { x: r.x, y: r.y, width: r.width, height: r.height, scale: 1 };
       })

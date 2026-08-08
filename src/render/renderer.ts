@@ -7,6 +7,7 @@ import type { CameraOp, RenderLook, Renderable, SerializedFilm, SerializedNode, 
 import { bboxOfPoints, pathFromPoints, unionBBox, type BBox } from "../core/geometry.js";
 import { rotatePoint, project, faceNormal, normalize, subtract, dot, shadeHex, type Vec3 } from "../core/geometry3d.js";
 import { solveTwoBoneIK } from "../core/ik.js";
+import { mountLit3D } from "./renderer3d.js";
 import type { Point } from "../core/types.js";
 import { roughOptionsFor, strokeWidthOf } from "./style.js";
 
@@ -61,9 +62,15 @@ export interface MountResult {
   totalDuration: () => number;
 }
 
-/** Dispatches on `renderable.kind` — the one entry point the browser harness calls. */
+/** Dispatches on `renderable.kind` (scene vs. film) and, for a scene, on `look` — the one
+ * entry point the browser harness calls, and the one place that picks which rendering
+ * pipeline runs at all. `look: "lit3d"` is a genuinely separate pipeline (WebGL/Three.js,
+ * not SVG/rough.js), not another branch inside this file's own builders — see
+ * renderer3d.ts's own doc comment for why. */
 export function mountRenderable(renderable: Renderable, container: HTMLElement): MountResult {
-  return renderable.kind === "film" ? mountFilm(renderable, container) : mount(renderable, container);
+  if (renderable.kind === "film") return mountFilm(renderable, container);
+  if (renderable.look === "lit3d") return mountLit3D(renderable, container);
+  return mount(renderable, container);
 }
 
 export function mount(scene: SerializedScene, container: HTMLElement): MountResult {

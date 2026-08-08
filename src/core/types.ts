@@ -129,7 +129,11 @@ export type SceneBackground = string | { stops: GradientStop[]; direction?: "hor
 // - "watercolor": the same crisp geometry as "flat", with a whole-frame SVG filter
 //   (turbulence displacement + a soft blur) bleeding every edge — a post-process over the
 //   same pipeline, not a different stroke style underneath.
-export type RenderLook = "ink" | "flat" | "clay" | "watercolor";
+// - "lit3d": a genuinely separate rendering pipeline (WebGL/Three.js, not SVG/rough.js) —
+//   real directional + ambient lighting and cast shadows on mesh3d nodes specifically.
+//   Only mesh3d nodes have a 3D representation; every 2D-only node (stroke, blob, limb,
+//   text) in the same scene simply doesn't appear in a lit3d render. See renderer3d.ts.
+export type RenderLook = "ink" | "flat" | "clay" | "watercolor" | "lit3d";
 
 export interface SerializedScene {
   kind: "scene";
