@@ -30,7 +30,7 @@
     "url": "https://github.com/AnayGarodia/sketchling/issues"
   },
   "bin": {
-    "sketchling": "./bin/sketchling.js"
+    "sketchling": "bin/sketchling.js"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
