@@ -20,32 +20,34 @@ export function strokeWidthOf(weight: Weight | undefined): number {
 
 const ENERGY_MULT: Record<string, number> = { calm: 0.7, quick: 1, frantic: 1.6 };
 
-/** The fillStyle rough.js actually ends up using — "flat"/"watercolor"/"pixel"/"clay"
- * force solid regardless of what the author asked for, same override roughOptionsFor
- * already applies inline. Pulled out on its own so renderer.ts can decide, before calling
- * roughOptionsFor, whether a gradient fill color is even eligible to render as a real
- * gradient (only meaningful on "solid" — hachure/cross-hatch/zigzag/dots are procedural
- * line strokes with no continuous area to gradient across). */
+/** The fillStyle rough.js actually ends up using — "flat"/"clay" force solid regardless of
+ * what the author asked for, same override roughOptionsFor already applies inline. Pulled
+ * out on its own so renderer.ts can decide, before calling roughOptionsFor, whether a
+ * gradient fill color is even eligible to render as a real gradient (only meaningful on
+ * "solid" — hachure/cross-hatch/zigzag/dots are procedural line strokes with no continuous
+ * area to gradient across). Independent of SceneTexture entirely — a texture is a
+ * whole-frame post-process, not a fillStyle override, so "grain"/"watercolor"/"pixel" don't
+ * appear here at all; they combine with whatever fillStyle `look` alone already produced. */
 export function effectiveFillStyle(style: NodeStyle, look: RenderLook): string {
-  const crisp = look === "flat" || look === "watercolor" || look === "pixel" || look === "grain";
+  const crisp = look === "flat";
   const clay = look === "clay";
   return crisp || clay ? "solid" : style.fill?.style ?? "hachure";
 }
 
 /** Maps sketchling's design vocabulary (weight/looseness/energy) onto rough.js draw
- * options — the one place a scene's `look` actually changes what gets painted.
- * "flat"/"watercolor" share crisp underlying geometry (watercolor's bleed is a filter
- * applied over that, not a different stroke quality). "clay" keeps the geometry
- * imprecise, at a subtler magnitude than "ink" — hand-molded, not hand-sketched — with
- * solid fills; its distinguishing choppiness comes from quantized seek time, not
- * per-shape jitter (see mount()'s seekTo). */
+ * options — the one place a scene's `look` actually changes what gets painted. "clay" keeps
+ * the geometry imprecise, at a subtler magnitude than "ink" — hand-molded, not
+ * hand-sketched — with solid fills; its distinguishing choppiness comes from quantized seek
+ * time, not per-shape jitter (see mount()'s seekTo). SceneTexture (watercolor/grain/pixel)
+ * is a separate, independent axis — see effectiveFillStyle's doc comment — so it plays no
+ * part in this function at all. */
 export function roughOptionsFor(
   style: NodeStyle,
   seed: number,
   closed: boolean,
   look: RenderLook = "ink"
 ): Record<string, unknown> {
-  const crisp = look === "flat" || look === "watercolor" || look === "pixel" || look === "grain";
+  const crisp = look === "flat";
   const clay = look === "clay";
   const looseness = style.looseness ?? 0.3;
   const energyMult = ENERGY_MULT[style.energy ?? "quick"] ?? 1;

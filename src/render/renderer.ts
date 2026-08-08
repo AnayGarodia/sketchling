@@ -3,7 +3,7 @@ import gsap from "gsap";
 import { EasePack, RoughEase } from "gsap/EasePack";
 import { MorphSVGPlugin } from "gsap/MorphSVGPlugin";
 import { MotionPathPlugin } from "gsap/MotionPathPlugin";
-import type { AnimOp, CameraOp, NodeStyle, RenderLook, Renderable, SceneBackground, SerializedFilm, SerializedNode, SerializedScene } from "../core/types.js";
+import type { AnimOp, CameraOp, NodeStyle, RenderLook, Renderable, SceneBackground, SceneTexture, SerializedFilm, SerializedNode, SerializedScene } from "../core/types.js";
 import { bboxOfPoints, pathFromPoints, unionBBox, seededRandom, type BBox } from "../core/geometry.js";
 import { rotatePoint, project, faceNormal, normalize, subtract, dot, shadeHex, type Vec3 } from "../core/geometry3d.js";
 import { solveTwoBoneIK } from "../core/ik.js";
@@ -141,11 +141,7 @@ export function mount(scene: SerializedScene, container: HTMLElement): MountResu
   svg.appendChild(defs);
 
   const look = scene.look ?? "ink";
-  if (look === "watercolor") {
-    svg.setAttribute("filter", `url(#${buildWatercolorFilter(defs)})`);
-  } else if (look === "grain") {
-    svg.setAttribute("filter", `url(#${buildGrainFilter(defs)})`);
-  }
+  applyTextureFilter(scene.texture, svg, defs);
 
   container.innerHTML = "";
   container.appendChild(svg);
@@ -183,9 +179,10 @@ export function mount(scene: SerializedScene, container: HTMLElement): MountResu
 
 const CLAY_FRAME_HOLD = 1 / 10; // ~10fps — a stop-motion cadence, not a continuous tween
 
-/** A whole-frame bleed: fractal-noise displacement (edges wander like wet pigment) plus a
- * soft blur, over the same crisp geometry "flat" uses — the paint is a post-process, not a
- * different stroke style underneath. Returns the filter's id. */
+/** texture: "watercolor" — a whole-frame bleed: fractal-noise displacement (edges wander
+ * like wet pigment) plus a soft blur, layered over whichever `look` geometry is active —
+ * the paint is a post-process, not a different stroke style underneath. Returns the
+ * filter's id. */
 function buildWatercolorFilter(defs: SVGDefsElement): string {
   const id = "sk-watercolor";
   const filter = document.createElementNS(SVG_NS, "filter");
@@ -221,10 +218,10 @@ function buildWatercolorFilter(defs: SVGDefsElement): string {
   return id;
 }
 
-/** PROTOTYPE (look: "grain", not yet documented like the other looks): a whole-frame
- * film-grain/paper-texture filter, the same "SVG filter over flat's crisp geometry"
- * technique buildWatercolorFilter uses, aimed at a different target — fine aged-paper
- * texture instead of wet-media bleed. feTurbulence's noise is converted to a pure-black
+/** texture: "grain" — a whole-frame film-grain/paper-texture filter, the same "SVG filter
+ * over the same geometry" technique buildWatercolorFilter uses, aimed at a different target
+ * — fine aged-paper texture instead of wet-media bleed. feTurbulence's noise is converted
+ * to a pure-black
  * layer whose ALPHA (not color) varies with noise brightness (the color-matrix's last row
  * sums R+G+B into alpha, scaled down to control grain intensity, with R/G/B rows left at
  * zero), then feBlend "overlay" combines that speckle with the source — darkens shadows
@@ -265,6 +262,21 @@ function buildGrainFilter(defs: SVGDefsElement): string {
 
   defs.appendChild(filter);
   return id;
+}
+
+/** Applies a scene's optional texture as an SVG `filter` attribute on `target` — the one
+ * place SceneTexture actually does anything, shared between a standalone `mount` (target
+ * is the top-level `<svg>`) and `mountFilm` (target is each entry's own wrapper `<g>`, so
+ * a texture is scoped to that one scene's own content rather than the whole film canvas).
+ * A no-op for `undefined`/`"pixel"` — pixel is a CLI-level raster post-process on the final
+ * captured frame, not an SVG filter, so there's nothing to attach here (see SceneTexture's
+ * own doc comment for why that keeps it scene-only, unlike watercolor/grain). */
+function applyTextureFilter(texture: SceneTexture | undefined, target: SVGElement, defs: SVGDefsElement): void {
+  if (texture === "watercolor") {
+    target.setAttribute("filter", `url(#${buildWatercolorFilter(defs)})`);
+  } else if (texture === "grain") {
+    target.setAttribute("filter", `url(#${buildGrainFilter(defs)})`);
+  }
 }
 
 /**
@@ -333,6 +345,12 @@ export function mountFilm(film: SerializedFilm, container: HTMLElement): MountRe
     clipPath.appendChild(clipRect);
     defs.appendChild(clipPath);
     wrapper.setAttribute("clip-path", `url(#${clipId})`);
+    // Scoped to this one entry's own wrapper, not the whole film canvas — a texture on
+    // scene A doesn't bleed into scene B's own (possibly texture-less, or differently
+    // textured) frame. This is the fix for the pre-existing gap SceneTexture's own doc
+    // comment mentions: watercolor/grain previously only applied in a standalone mount(),
+    // never inside a Film at all.
+    applyTextureFilter(scene.texture, wrapper, defs);
     svg.appendChild(wrapper);
 
     // Deliberately NOT `{ paused: true }`: a child timeline created paused stays inert

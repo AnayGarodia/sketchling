@@ -28,6 +28,7 @@ export type {
   AnimOp,
   Mesh3DFaceData,
   RenderLook,
+  SceneTexture,
   SerializedScene,
   SerializedNode,
   SerializedFilm,

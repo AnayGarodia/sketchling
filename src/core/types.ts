@@ -176,8 +176,9 @@ export interface GradientStop {
 
 export type SceneBackground = string | { stops: GradientStop[]; direction?: "horizontal" | "vertical" };
 
-// The scene's visual treatment — what turns an authored shape into pixels, independent of
-// what that shape IS (its geometry, physics, timing are the same regardless).
+// The scene's GEOMETRY treatment — how paths/fills/timing themselves are computed. One of
+// two independent axes (the other is SceneTexture, below); every combination of the two is
+// valid and renders correctly, not just the ones with their own name.
 // - "ink" (default): hand-drawn rough.js sketchiness, line boil, a visible pen tip during
 //   drawOn.
 // - "flat": the same shapes and timing rendered crisp and precise instead — no jitter, no
@@ -186,29 +187,47 @@ export type SceneBackground = string | { stops: GradientStop[]; direction?: "hor
 // - "clay": moderate, subtler jitter than ink (hand-molded, not hand-sketched), solid
 //   fills, and time itself quantized to a ~10fps hold — a stop-motion cadence, not a
 //   continuous tween, applied at the seek level rather than per-shape.
-// - "watercolor": the same crisp geometry as "flat", with a whole-frame SVG filter
-//   (turbulence displacement + a soft blur) bleeding every edge — a post-process over the
-//   same pipeline, not a different stroke style underneath.
 // - "lit3d": a genuinely separate rendering pipeline (WebGL/Three.js, not SVG/rough.js) —
 //   real directional + ambient lighting and cast shadows on mesh3d nodes specifically.
 //   Only mesh3d nodes have a 3D representation; every 2D-only node (stroke, blob, limb,
 //   text) in the same scene simply doesn't appear in a lit3d render. See renderer3d.ts.
-// - "pixel": "flat"'s crisp geometry, with every captured frame additionally downsampled
-//   and nearest-neighbor upscaled back to size (a raster post-process applied in cli.ts
-//   after the browser screenshot, not a DOM/SVG-level change) — a blocky, low-res game-art
-//   look. Requires ffmpeg on PATH, same as --video already does.
+//   SceneTexture doesn't apply here — a separate pipeline, not wired to the 2D filter
+//   system.
 // - "toon3d": lit3d's exact pipeline (same camera, lights, shadows, mesh3d-only scope) with
 //   a stepped/cel gradient map on each mesh's material instead of a continuous PBR one —
 //   flat toon bands instead of a smooth roughness falloff — plus a black inverted-hull
 //   silhouette outline (a second back-face-only mesh scaled up ~4%, parented so it inherits
 //   the same animated transform for free). A shading variant of lit3d, not a separate
 //   pipeline; see renderer3d.ts.
-// "grain": PROTOTYPE, not yet documented/gallery'd like the others — flat's crisp geometry
-// plus a whole-frame film-grain/paper-texture SVG filter (luminance-noise blended over the
-// source via feBlend "overlay"), the same "filter over the same pipeline" technique
-// watercolor already uses, aimed at a different target (fine aged-paper texture instead of
-// wet-media bleed).
-export type RenderLook = "ink" | "flat" | "clay" | "watercolor" | "lit3d" | "pixel" | "toon3d" | "grain";
+export type RenderLook = "ink" | "flat" | "clay" | "lit3d" | "toon3d";
+
+// The scene's TEXTURE — an optional whole-frame post-process layered over whichever
+// RenderLook was chosen, freely combinable with any of "ink"/"flat"/"clay" (meaningless
+// under "lit3d"/"toon3d", a separate pipeline this doesn't reach). Independent of geometry
+// on purpose: a watercolor wash over ink's own sketchy jitter, or grain over flat's crisp
+// precision, are both real, useful, and equally valid — earlier revisions coupled specific
+// textures to specific "crisp" geometry, which worked until grain (aged paper) needed to
+// pair with ink's hachure fills for an old-book/engraving register and crisp-only broke
+// that combination outright.
+// - "watercolor": a whole-frame SVG filter (turbulence displacement + a soft blur) bleeding
+//   every edge, like wet pigment — a post-process over whatever geometry look is active,
+//   not a different stroke style underneath.
+// - "grain": a different whole-frame SVG filter — feTurbulence noise converted to a
+//   pure-black layer whose alpha (not color) varies with noise brightness, blended over the
+//   source via feBlend "overlay" (darkens shadows/lightens highlights slightly, the way
+//   real grain modulates an image, not a flat semi-transparent layer on top). Fine
+//   aged-paper/film-grain texture instead of wet-media bleed.
+// - "pixel": every captured frame additionally downsampled and nearest-neighbor upscaled
+//   back to size (a raster post-process applied in cli.ts after the browser screenshot, not
+//   a DOM/SVG-level change) — a blocky, low-res game-art look. Requires ffmpeg on PATH,
+//   same as --video already does. Scene-only, same limitation as before the two-axis split:
+//   it lives in the CLI's capture step, operating on the final composited frame, so a Film
+//   entry using it doesn't get pixelated (there's no way to selectively pixelate one
+//   entry's screen region after everything's already composited into one canvas) and it's
+//   invisible under --serve (which skips the capture step entirely). "watercolor"/"grain"
+//   don't share this limitation — they're SVG filters scoped to each Film entry's own
+//   wrapper element, so they DO apply correctly inside a Film.
+export type SceneTexture = "watercolor" | "grain" | "pixel";
 
 export interface SerializedScene {
   kind: "scene";
@@ -224,6 +243,7 @@ export interface SerializedScene {
   background: SceneBackground;
   seed: number;
   look: RenderLook;
+  texture?: SceneTexture;
   children: SerializedNode[];
   camera: CameraOp[];
 }

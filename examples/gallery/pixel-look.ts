@@ -1,11 +1,11 @@
 import { sketch } from "../../src/index.js";
 
-// Gallery: the "pixel" look — flat's crisp geometry, plus every captured frame downsampled
-// and nearest-neighbor upscaled back to size (a raster post-process in the CLI, not a
-// DOM/SVG change) for a blocky, low-res game-art cadence. A simple platformer-style scene
-// (ground, a block, a collectible, a sun) reads clearly at pixel scale without needing fine
-// detail to show off.
-const scene = sketch.scene({ width: 400, height: 280, background: "#6f9bd1", seed: "pixel-look", look: "pixel" });
+// Gallery: texture: "pixel" — every captured frame downsampled and nearest-neighbor
+// upscaled back to size (a raster post-process in the CLI, not a DOM/SVG change) for a
+// blocky, low-res game-art cadence, layered over look: "flat"'s crisp geometry. A simple
+// platformer-style scene (ground, a block, a collectible, a sun) reads clearly at pixel
+// scale without needing fine detail to show off.
+const scene = sketch.scene({ width: 400, height: 280, background: "#6f9bd1", seed: "pixel-look", look: "flat", texture: "pixel" });
 
 const ink = "#181511";
 

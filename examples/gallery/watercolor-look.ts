@@ -1,15 +1,18 @@
 import { sketch } from "../../src/index.js";
 
-// Gallery: the "watercolor" look — flat's crisp geometry plus a whole-frame SVG filter
-// (turbulence displacement + blur) that bleeds every edge, like wet pigment. A blooming
-// flower is a good subject for it: several solid-fill petals with real open interior area
-// and a lot of outer edge, so the bleed has something to show off (pure line art wouldn't).
+// Gallery: texture: "watercolor" — a whole-frame SVG filter (turbulence displacement +
+// blur) that bleeds every edge, like wet pigment, layered over look: "flat"'s crisp
+// geometry. Look and texture are independent axes (see types.ts's SceneTexture doc
+// comment) — this scene picks "flat" because a blooming flower with several solid-fill
+// petals and a lot of outer edge is a good subject to show the bleed off on, not because
+// watercolor requires it; the same texture combines with "ink" or "clay" just as well.
 const scene = sketch.scene({
   width: 360,
   height: 420,
   background: "#e9eff0",
   seed: "watercolor-look-flower",
-  look: "watercolor",
+  look: "flat",
+  texture: "watercolor",
 });
 
 const ink = "#3a3226";

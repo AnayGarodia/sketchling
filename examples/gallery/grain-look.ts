@@ -1,12 +1,15 @@
 import { sketch } from "../../src/index.js";
 
-// Gallery demo for the "grain" look: the same crisp "flat" geometry, with a different
-// whole-frame SVG filter than watercolor's — fine aged-paper/film-grain texture instead of
-// wet-media bleed. Shown on a gradient-shaded landform rather than a small geometric shape
-// (the other *-look.ts files' convention) because that's genuinely where this look does its
-// work: a smooth vector gradient reads as flat illustration, and grain is what breaks that
-// smoothness into something that reads as aged and atmospheric. The two looks compose —
-// this is the exact scene from gradient-shading.ts, only the `look` value differs.
+// Gallery demo for texture: "grain": a whole-frame SVG filter, independent of `look` (see
+// types.ts's SceneTexture doc comment) — fine aged-paper/film-grain texture instead of
+// watercolor's wet-media bleed. Layered over look: "flat" here, on a gradient-shaded
+// landform rather than a small geometric shape (the other *-look.ts files' convention),
+// because that's genuinely where this texture does its work: a smooth vector gradient reads
+// as flat illustration, and grain is what breaks that smoothness into something that reads
+// as aged and atmospheric. This is the exact scene from gradient-shading.ts, only `texture`
+// added. Grain pairs just as well with "ink"'s own jitter and hachure fills — the two axes
+// are fully independent — for an old-book/engraving register instead of this atmospheric
+// one; that's a different scene, not shown here.
 
 const scene = sketch.scene({
   width: 640,
@@ -20,7 +23,8 @@ const scene = sketch.scene({
     direction: "vertical",
   },
   seed: "grain-look",
-  look: "grain",
+  look: "flat",
+  texture: "grain",
 });
 
 const cliff = sketch.loop(

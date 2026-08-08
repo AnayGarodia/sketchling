@@ -80,7 +80,7 @@ async function runRender(sceneFile: string, opts: RenderOpts): Promise<void> {
       );
       const cdp = await page.context().newCDPSession(page);
 
-      const pixelPost = serialized.kind === "scene" && serialized.look === "pixel" ? pixelateBuffer : undefined;
+      const pixelPost = serialized.kind === "scene" && serialized.texture === "pixel" ? pixelateBuffer : undefined;
 
       if (opts.video) {
         await renderVideo(page, cdp, opts.video, Number(opts.fps), workdir, pixelPost);
