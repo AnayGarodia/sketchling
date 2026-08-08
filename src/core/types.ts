@@ -117,11 +117,19 @@ export interface GradientStop {
 export type SceneBackground = string | { stops: GradientStop[]; direction?: "horizontal" | "vertical" };
 
 // The scene's visual treatment — what turns an authored shape into pixels, independent of
-// what that shape IS (its geometry, physics, timing are the same regardless). "ink"
-// (default): hand-drawn rough.js sketchiness, line boil, a visible pen tip during drawOn.
-// "flat": the same shapes and timing rendered crisp and precise instead — no jitter, no
-// boil, solid fills, no pen tip — a flat vector motion-graphics look off the same pipeline.
-export type RenderLook = "ink" | "flat";
+// what that shape IS (its geometry, physics, timing are the same regardless).
+// - "ink" (default): hand-drawn rough.js sketchiness, line boil, a visible pen tip during
+//   drawOn.
+// - "flat": the same shapes and timing rendered crisp and precise instead — no jitter, no
+//   boil, solid fills, no pen tip — a flat vector motion-graphics look off the same
+//   pipeline.
+// - "clay": moderate, subtler jitter than ink (hand-molded, not hand-sketched), solid
+//   fills, and time itself quantized to a ~10fps hold — a stop-motion cadence, not a
+//   continuous tween, applied at the seek level rather than per-shape.
+// - "watercolor": the same crisp geometry as "flat", with a whole-frame SVG filter
+//   (turbulence displacement + a soft blur) bleeding every edge — a post-process over the
+//   same pipeline, not a different stroke style underneath.
+export type RenderLook = "ink" | "flat" | "clay" | "watercolor";
 
 export interface SerializedScene {
   kind: "scene";

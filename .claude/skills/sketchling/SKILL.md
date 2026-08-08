@@ -141,6 +141,8 @@ const scene = sketch.scene({ width: 480, height: 420, background: "#7096c6", loo
 ```
 
 - `look` on `sketch.scene(...)` picks the visual treatment: `"ink"` (default) is the hand-drawn look everything above assumes — sketchy jitter, line boil, a visible pen tip tracing `drawOn`. `"flat"` renders the *identical* authored scene — same geometry, same physics, same timing — crisp and precise instead: no jitter, no boil, solid fills instead of hachure/cross-hatch, no pen tip.
+- `"clay"`: subtler, hand-molded jitter than `"ink"` (less chaotic — pressed, not sketched), solid fills, no boil — and, distinctly, time itself is quantized to a ~10fps hold rather than tweened continuously, a genuine stop-motion cadence applied at the seek level. Every downstream system (camera, drawOn, IK) needs no special handling for this — it just sees time move in discrete jumps.
+- `"watercolor"`: the same crisp geometry as `"flat"`, with a whole-frame SVG filter (fractal-noise displacement plus a soft blur) bleeding every edge like wet pigment on paper — a post-process over the same pipeline, not a different stroke style underneath.
 - Nothing about how you author a scene changes based on `look` — every primitive, animation, and this whole reference applies the same either way. `look` is a rendering decision, not an authoring one.
 
 ## Film — cutting scenes together

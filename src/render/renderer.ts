@@ -79,6 +79,11 @@ export function mount(scene: SerializedScene, container: HTMLElement): MountResu
   const defs = document.createElementNS(SVG_NS, "defs");
   svg.appendChild(defs);
 
+  const look = scene.look ?? "ink";
+  if (look === "watercolor") {
+    svg.setAttribute("filter", `url(#${buildWatercolorFilter(defs)})`);
+  }
+
   container.innerHTML = "";
   container.appendChild(svg);
 
@@ -95,15 +100,60 @@ export function mount(scene: SerializedScene, container: HTMLElement): MountResu
     // this through Playwright's page.evaluate() — an implicit return would hand the whole
     // GSAP timeline object graph back for CDP serialization, which never completes.
     seekTo: (t: number) => {
-      tl.seek(t, false);
-      applyBoilAt(boilTargets, t);
+      // "clay" holds each pose for a stop-motion cadence instead of tweening
+      // continuously — quantizing the seek time itself, rather than anything per-shape,
+      // so every downstream system (camera, drawOn, IK) just sees time move in discrete
+      // jumps and needs no look-specific handling of its own.
+      const st = look === "clay" ? Math.floor(t / CLAY_FRAME_HOLD) * CLAY_FRAME_HOLD : t;
+      tl.seek(st, false);
+      applyBoilAt(boilTargets, st);
       // Runs strictly after the seek has fully resolved every other tween — see
       // postSeek's own comment for why camera.follow can't safely read a moving
       // target's live position from inside the same seek pass.
-      postSeek(t);
+      postSeek(st);
     },
     totalDuration: () => tl.duration(),
   };
+}
+
+const CLAY_FRAME_HOLD = 1 / 10; // ~10fps — a stop-motion cadence, not a continuous tween
+
+/** A whole-frame bleed: fractal-noise displacement (edges wander like wet pigment) plus a
+ * soft blur, over the same crisp geometry "flat" uses — the paint is a post-process, not a
+ * different stroke style underneath. Returns the filter's id. */
+function buildWatercolorFilter(defs: SVGDefsElement): string {
+  const id = "sk-watercolor";
+  const filter = document.createElementNS(SVG_NS, "filter");
+  filter.setAttribute("id", id);
+  filter.setAttribute("x", "-20%");
+  filter.setAttribute("y", "-20%");
+  filter.setAttribute("width", "140%");
+  filter.setAttribute("height", "140%");
+
+  const turbulence = document.createElementNS(SVG_NS, "feTurbulence");
+  turbulence.setAttribute("type", "fractalNoise");
+  turbulence.setAttribute("baseFrequency", "0.012");
+  turbulence.setAttribute("numOctaves", "2");
+  turbulence.setAttribute("seed", "7");
+  turbulence.setAttribute("result", "noise");
+  filter.appendChild(turbulence);
+
+  const displace = document.createElementNS(SVG_NS, "feDisplacementMap");
+  displace.setAttribute("in", "SourceGraphic");
+  displace.setAttribute("in2", "noise");
+  displace.setAttribute("scale", "7");
+  displace.setAttribute("xChannelSelector", "R");
+  displace.setAttribute("yChannelSelector", "G");
+  displace.setAttribute("result", "displaced");
+  filter.appendChild(displace);
+
+  const blur = document.createElementNS(SVG_NS, "feGaussianBlur");
+  blur.setAttribute("in", "displaced");
+  blur.setAttribute("stdDeviation", "0.7");
+  filter.appendChild(blur);
+
+  defs.appendChild(filter);
+  return id;
 }
 
 /**
