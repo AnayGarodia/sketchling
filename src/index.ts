@@ -9,6 +9,8 @@ export { Mesh3D, box3d, icosahedron3d } from "./core/mesh3d.js";
 export { Limb, limb } from "./core/limb.js";
 export { walk } from "./core/gait.js";
 export { Connector, connector } from "./core/connector.js";
+export { Particles, particles } from "./core/particles.js";
+export type { ParticleOpts } from "./core/particles.js";
 export type {
   Point,
   Point3,

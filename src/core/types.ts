@@ -85,7 +85,7 @@ export interface Mesh3DFaceData {
 
 export interface SerializedNode {
   id: string;
-  type: "stroke" | "blob" | "group" | "mesh3d" | "limb" | "connector";
+  type: "stroke" | "blob" | "group" | "mesh3d" | "limb" | "connector" | "particles";
   points?: Point[];
   closed?: boolean;
   style?: NodeStyle;
@@ -125,6 +125,26 @@ export interface SerializedNode {
   connectorAnchorX?: number;
   connectorAnchorY?: number;
   connectorTargetId?: string;
+  // particles only: emitter configuration — each particle's spawn time, launch angle,
+  // speed, and size are drawn ONCE from a seeded PRNG at build time (see renderer.ts's
+  // buildParticles), so a particle's position at any t is a closed-form ballistic formula,
+  // not an integrated simulation — no lookup table needed, unlike springTo, since nothing
+  // about it depends on any other node's live state. The 2D fields above (points/closed)
+  // are unused here, same convention as mesh3d/limb/connector.
+  particlesSpawnX?: number;
+  particlesSpawnY?: number;
+  particlesCount?: number;
+  particlesAngle?: number; // degrees, screen convention: 0 = +x (right), 90 = +y (down)
+  particlesSpread?: number; // degrees, total cone width around particlesAngle
+  particlesSpeedMin?: number; // px/sec
+  particlesSpeedMax?: number;
+  particlesGravity?: number; // px/sec^2, positive pulls toward +y (down)
+  particlesLifetime?: number; // seconds each particle stays visible
+  particlesDuration?: number; // seconds emission is spread across; 0 = one burst
+  particlesEmitAt?: number;
+  particlesSizeMin?: number;
+  particlesSizeMax?: number;
+  particlesFade?: boolean;
 }
 
 export interface GradientStop {

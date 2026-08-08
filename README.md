@@ -173,6 +173,22 @@ scene.add(antenna);
 
 `sketch.connector(anchor, target, style?)` is a stroke that rebuilds itself every seek from the fixed `anchor` point to `target`'s own live resolved position — the same live-position read `camera.follow` and `springTo`'s drivers both use — bowed through one synthetic offset midpoint rather than drawn as a straight segment, so it reads as a flexible rod bending under the tip's own motion instead of a rigid rotating stick. `target` doesn't have to be a `springTo`'d node — a connector tracks any node's live position — but pairing the two is what actually makes an ear or antenna, not just a trailing accessory: see `examples/gallery/bendy-antenna.ts`. No `drawOn` on a connector (there's no stable path length to reveal against geometry that changes every frame) and no line-boil (it already fully rebuilds each seek); `fadeTo`/`moveTo`/etc. on its own transform still work normally.
 
+## Particles — sparks, dust, confetti, a firework burst
+
+```ts
+const burst = sketch.particles(200, 220, { color: "#f2c94c" }, {
+  count: 40, angle: -90, spread: 100, speedMin: 80, speedMax: 220,
+  gravity: 260, lifetime: 1.4, at: 0.3,
+});
+scene.add(burst);
+```
+
+`sketch.particles(x, y, style, opts)` launches `count` (default `24`) small dots from `(x, y)` within a cone (`angle` ± `spread`/2 degrees — screen convention `0` = +x/right, `90` = +y/down, so the default `angle: -90` points straight up) under constant `gravity` (default `220` px/sec², pulling toward +y). `duration` spreads emission across a window instead of firing all at once (default `0`, one burst); `lifetime` (default `1.2`s) is how long each particle stays visible, with `fade` (default `true`) ramping its opacity in then out over that span.
+
+Deliberately not a simulation. Every particle's spawn time, launch angle, speed, and size are drawn once from a seeded PRNG when the emitter is built, so a particle's position at any `t` is a closed-form ballistic formula — `x0 + vx·age, y0 + vy·age + ½·gravity·age²` — a pure function of `t` and that one particle's own fixed numbers, with no history and no dependency on any other node in the scene. That's a real difference from `springTo`: a spring's damped motion genuinely depends on its whole past, which is why it needs a precomputed lookup table at all; particles need nothing precomputed — an arbitrary seek is exact for free, the same way a plain `moveTo` tween already is.
+
+One real gotcha, caught during development, worth knowing about rather than hiding: since a particle's motion is never itself a `tl.to()` call, nothing naturally extends the timeline to cover it — a `--video` export first rendered exactly one frame at t=0 for a scene with nothing else in it, since `tl.duration()` was still 0. Fixed the same way `springTo`'s settle-window is: `sketch.particles` reserves timeline duration through the latest particle's own `spawnTime + lifetime`, computed after everything else already on the timeline is known. See `examples/gallery/particle-burst.ts`.
+
 ## Look — the same scene, painted differently
 
 ```ts
@@ -227,7 +243,7 @@ Early and opinionated by design: v1 targets one aesthetic (flat, hand-drawn line
 
 If you're using [Claude Code](https://claude.com/claude-code) inside this repo, `.claude/skills/sketchling/` is available and teaches the vocabulary directly — no README round-trip needed.
 
-Not yet built: more shape helpers beyond `arrow`/`speechBubble` (a star, a checkmark) as thin geometric compositions of the existing primitives, not a curated asset library — that's a deliberate non-goal, see "Why" above; particle systems, the next layer above what's here now; an auto-rig that derives a `sketch.limb` skeleton from a drawn silhouette instead of hand-placed joints.
+Not yet built: more shape helpers beyond `arrow`/`speechBubble` (a star, a checkmark) as thin geometric compositions of the existing primitives, not a curated asset library — that's a deliberate non-goal, see "Why" above; an auto-rig that derives a `sketch.limb` skeleton from a drawn silhouette instead of hand-placed joints.
 
 ## Contributing
 

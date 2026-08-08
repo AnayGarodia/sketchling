@@ -5,6 +5,7 @@ import { Camera } from "./camera.js";
 import { Mesh3D } from "./mesh3d.js";
 import { Limb } from "./limb.js";
 import { Connector } from "./connector.js";
+import { Particles } from "./particles.js";
 import type { RenderLook, SceneBackground, SerializedNode, SerializedScene } from "./types.js";
 import { hashSeed } from "./geometry.js";
 
@@ -134,6 +135,18 @@ function serializeNode(node: SketchNode): SerializedNode {
       id: node.id, type: "connector", style: node.style, transform: node.transform,
       animations: node.animations, seed: node.seed,
       connectorAnchorX: node.anchorX, connectorAnchorY: node.anchorY, connectorTargetId: node.targetId,
+    };
+  }
+  if (node instanceof Particles) {
+    return {
+      id: node.id, type: "particles", style: node.style, transform: node.transform,
+      animations: node.animations, seed: node.seed,
+      particlesSpawnX: node.spawnX, particlesSpawnY: node.spawnY, particlesCount: node.count,
+      particlesAngle: node.angle, particlesSpread: node.spread,
+      particlesSpeedMin: node.speedMin, particlesSpeedMax: node.speedMax,
+      particlesGravity: node.gravity, particlesLifetime: node.lifetime,
+      particlesDuration: node.duration, particlesEmitAt: node.emitAt,
+      particlesSizeMin: node.sizeMin, particlesSizeMax: node.sizeMax, particlesFade: node.fade,
     };
   }
   if (node instanceof Stroke) {

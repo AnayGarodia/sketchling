@@ -4,7 +4,7 @@ import { EasePack, RoughEase } from "gsap/EasePack";
 import { MorphSVGPlugin } from "gsap/MorphSVGPlugin";
 import { MotionPathPlugin } from "gsap/MotionPathPlugin";
 import type { AnimOp, CameraOp, NodeStyle, RenderLook, Renderable, SerializedFilm, SerializedNode, SerializedScene } from "../core/types.js";
-import { bboxOfPoints, pathFromPoints, unionBBox, type BBox } from "../core/geometry.js";
+import { bboxOfPoints, pathFromPoints, unionBBox, seededRandom, type BBox } from "../core/geometry.js";
 import { rotatePoint, project, faceNormal, normalize, subtract, dot, shadeHex, type Vec3 } from "../core/geometry3d.js";
 import { solveTwoBoneIK } from "../core/ik.js";
 import { mountLit3D } from "./renderer3d.js";
@@ -69,6 +69,25 @@ interface PendingConnector {
   targetId: string;
   style: NodeStyle;
   baseSeed: number;
+}
+
+interface ParticleParams {
+  spawnTime: number;
+  vx: number;
+  vy: number;
+  size: number;
+  seed: number;
+}
+
+interface PendingParticleEmitter {
+  artGroup: SVGGElement;
+  style: NodeStyle;
+  spawnX: number;
+  spawnY: number;
+  gravity: number;
+  lifetime: number;
+  fade: boolean;
+  items: ParticleParams[];
 }
 
 export interface MountResult {
@@ -310,9 +329,10 @@ function buildSceneInto(
 
   const pendingSprings: PendingSpring[] = [];
   const pendingConnectors: PendingConnector[] = [];
+  const pendingParticles: PendingParticleEmitter[] = [];
   for (const node of scene.children) {
     const depth = node.type === "group" && node.depth !== undefined ? node.depth : DEFAULT_LAYER_DEPTH;
-    buildNode(node, layerGroups.get(depth)!, rc, tl, scene.seed, boilTargets, pendingSprings, pendingConnectors);
+    buildNode(node, layerGroups.get(depth)!, rc, tl, scene.seed, boilTargets, pendingSprings, pendingConnectors, pendingParticles);
   }
 
   const springsPostSeek = buildSprings(pendingSprings, scene, tl, container);
@@ -321,11 +341,15 @@ function buildSceneInto(
   // springTo'd node sees that spring's position already resolved for this frame, not last
   // frame's stale one.
   const connectorsPostSeek = buildConnectors(pendingConnectors, scene, container, rc);
+  // Particles depend on no other node's state (pure function of t and each particle's own
+  // fixed params), so ordering relative to the others doesn't matter.
+  const particlesPostSeek = buildParticles(pendingParticles, rc, tl);
   const cameraPostSeek = applyCameraLayers(layerGroups, scene, tl, container);
   return (t: number) => {
     cameraPostSeek(t);
     springsPostSeek(t);
     connectorsPostSeek(t);
+    particlesPostSeek(t);
   };
 }
 
@@ -678,6 +702,66 @@ function buildConnectors(
   };
 }
 
+/** Redraws every emitter's currently-alive particles fresh each seek — each particle's
+ * on-screen position/opacity at time t is computed directly from its own fixed params
+ * (drawn once from a seeded PRNG when the emitter was built, see buildNode's "particles"
+ * branch), a closed-form ballistic formula, not a running simulation. No dependency on any
+ * other node, so unlike springs there's no precomputed table and no ordering requirement
+ * relative to the other postSeek passes.
+ *
+ * One thing particles DO need from the timeline, same as springTo: since a particle's
+ * motion is never itself a tl.to() call, nothing naturally extends tl.duration() to cover
+ * it — a video export (which renders exactly tl.duration() worth of frames) would silently
+ * cut every particle out entirely otherwise. Reserves timeline duration through the latest
+ * particle's own (spawnTime + lifetime) across every emitter, same "compute after
+ * everything else already on tl" reasoning buildSprings' settle-window uses. */
+function buildParticles(
+  pendingParticles: PendingParticleEmitter[],
+  rc: ReturnType<typeof rough.svg>,
+  tl: gsap.core.Timeline
+): (t: number) => void {
+  if (pendingParticles.length === 0) return () => {};
+
+  const naturalDuration = tl.duration();
+  let desiredEnd = naturalDuration;
+  for (const emitter of pendingParticles) {
+    for (const p of emitter.items) {
+      desiredEnd = Math.max(desiredEnd, p.spawnTime + emitter.lifetime);
+    }
+  }
+  if (desiredEnd > naturalDuration) tl.set({}, {}, desiredEnd);
+
+  return (t: number) => {
+    for (const emitter of pendingParticles) {
+      while (emitter.artGroup.firstChild) emitter.artGroup.removeChild(emitter.artGroup.firstChild);
+
+      for (const p of emitter.items) {
+        const age = t - p.spawnTime;
+        if (age < 0 || age > emitter.lifetime) continue;
+
+        const px = emitter.spawnX + p.vx * age;
+        const py = emitter.spawnY + p.vy * age + 0.5 * emitter.gravity * age * age;
+
+        let opacity = 1;
+        if (emitter.fade) {
+          const frac = age / emitter.lifetime;
+          if (frac < 0.15) opacity = frac / 0.15;
+          else if (frac > 0.6) opacity = Math.max(0, 1 - (frac - 0.6) / 0.4);
+        }
+        if (opacity <= 0) continue;
+
+        const fillColor = emitter.style.fill?.color ?? emitter.style.color ?? "#333";
+        const opts = roughOptionsFor(emitter.style, p.seed, true, currentLook);
+        opts.fill = fillColor;
+        opts.fillStyle = "solid";
+        const el = rc.circle(px, py, p.size * 2, opts);
+        el.setAttribute("opacity", String(opacity));
+        emitter.artGroup.appendChild(el);
+      }
+    }
+  };
+}
+
 function buildNode(
   node: SerializedNode,
   parent: SVGElement,
@@ -686,13 +770,57 @@ function buildNode(
   sceneSeed: number,
   boilTargets: BoilTarget[],
   pendingSprings: PendingSpring[],
-  pendingConnectors: PendingConnector[]
+  pendingConnectors: PendingConnector[],
+  pendingParticles: PendingParticleEmitter[]
 ): void {
   const g = document.createElementNS(SVG_NS, "g");
   g.setAttribute("data-id", node.id);
   applyInitialTransform(g, node);
   parent.appendChild(g);
   collectSprings(node, g, pendingSprings);
+
+  if (node.type === "particles") {
+    const artGroup = document.createElementNS(SVG_NS, "g");
+    g.appendChild(artGroup);
+    const baseSeed = sceneSeed ^ node.seed;
+    const rand = seededRandom(baseSeed);
+    const count = node.particlesCount ?? 24;
+    const angle = node.particlesAngle ?? -90;
+    const spread = node.particlesSpread ?? 40;
+    const speedMin = node.particlesSpeedMin ?? 60;
+    const speedMax = node.particlesSpeedMax ?? 140;
+    const duration = node.particlesDuration ?? 0;
+    const emitAt = node.particlesEmitAt ?? 0;
+    const sizeMin = node.particlesSizeMin ?? 2;
+    const sizeMax = node.particlesSizeMax ?? 5;
+
+    // Every particle's own params drawn ONCE here, in authored order, from one seeded PRNG
+    // walked sequentially — deterministic, and independent of anything else in the scene.
+    const items: ParticleParams[] = [];
+    for (let i = 0; i < count; i++) {
+      const a = ((angle - spread / 2 + rand() * spread) * Math.PI) / 180;
+      const speed = speedMin + rand() * (speedMax - speedMin);
+      const spawnTime = emitAt + (duration > 0 ? rand() * duration : 0);
+      const size = sizeMin + rand() * (sizeMax - sizeMin);
+      items.push({ spawnTime, vx: Math.cos(a) * speed, vy: Math.sin(a) * speed, size, seed: baseSeed + i * 7919 + 13 });
+    }
+
+    pendingParticles.push({
+      artGroup,
+      style: node.style ?? {},
+      spawnX: node.particlesSpawnX ?? 0,
+      spawnY: node.particlesSpawnY ?? 0,
+      gravity: node.particlesGravity ?? 220,
+      lifetime: node.particlesLifetime ?? 1.2,
+      fade: node.particlesFade ?? true,
+      items,
+    });
+    // Same reasoning as connector/mesh3d/limb: moveTo/moveBy/rotateTo/scaleTo/fadeTo/
+    // squashTo still animate `g`'s own flat transform normally (moving the whole emitter);
+    // the particles' own positions are computed separately, in buildParticles' postSeek.
+    applyAnimations(g, node, tl, null, 0, false, null, rc, sceneSeed);
+    return;
+  }
 
   if (node.type === "connector") {
     const artGroup = document.createElementNS(SVG_NS, "g");
@@ -776,7 +904,7 @@ function buildNode(
 
   if (node.children) {
     for (const child of node.children) {
-      buildNode(child, g, rc, tl, sceneSeed, boilTargets, pendingSprings, pendingConnectors);
+      buildNode(child, g, rc, tl, sceneSeed, boilTargets, pendingSprings, pendingConnectors, pendingParticles);
     }
   }
 

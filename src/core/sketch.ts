@@ -9,6 +9,7 @@ import { Mesh3D, box3d, icosahedron3d } from "./mesh3d.js";
 import { Limb, limb, type LimbOpts } from "./limb.js";
 import { walk, type WalkOptions, type WalkResult } from "./gait.js";
 import { Connector } from "./connector.js";
+import { Particles, type ParticleOpts } from "./particles.js";
 import type { SketchNode } from "./node.js";
 import type { NodeStyle, Point, Point3 } from "./types.js";
 
@@ -89,5 +90,13 @@ export const sketch = {
    * each seek); `fadeTo`/`moveTo`/etc. on its own transform still work normally. */
   connector(anchor: Point, target: SketchNode, style: NodeStyle = {}): Connector {
     return new Connector(anchor, target, style);
+  },
+  /** A particle emitter: `count` small dots launched from (x, y) within a cone, each under
+   * constant gravity — sparks, dust, confetti, snow, a firework burst. Every particle's
+   * spawn time/angle/speed/size is drawn once from a seeded PRNG, so its position at any t
+   * is a closed-form ballistic formula, not a simulation — seeking anywhere is exact with
+   * no precomputed table needed. */
+  particles(x: number, y: number, style: NodeStyle = {}, opts: ParticleOpts = {}): Particles {
+    return new Particles(x, y, style, opts);
   },
 };
