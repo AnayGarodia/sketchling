@@ -70,4 +70,14 @@ export abstract class SketchNode {
     this.animations.push({ kind: "fadeTo", opacity, ...opts });
     return this;
   }
+
+  /** Morphs the drawn shape's outline (and fill, if it has one) into a new set of points,
+   * after it's already been drawn — a stroke/loop/blob becoming a different shape rather
+   * than a fresh one appearing. Only meaningful on stroke/loop/blob nodes (not Group);
+   * disables line-boil on this node, since re-jittering between un-morphed variants would
+   * make it visibly snap back mid-animation. */
+  morphTo(points: Point[], opts: TimingOpts = {}): this {
+    this.animations.push({ kind: "morphTo", points, ...opts });
+    return this;
+  }
 }

@@ -1,12 +1,13 @@
 import rough from "roughjs";
 import gsap from "gsap";
 import { EasePack, RoughEase } from "gsap/EasePack";
+import { MorphSVGPlugin } from "gsap/MorphSVGPlugin";
 import type { Renderable, SerializedFilm, SerializedNode, SerializedScene } from "../core/types.js";
 import { bboxOfPoints, pathFromPoints, unionBBox, type BBox } from "../core/geometry.js";
 import type { Point } from "../core/types.js";
 import { roughOptionsFor, strokeWidthOf } from "./style.js";
 
-gsap.registerPlugin(EasePack);
+gsap.registerPlugin(EasePack, MorphSVGPlugin);
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 // A hand doesn't move at constant velocity — it's uneven, hesitates, quickens on straights.
@@ -228,13 +229,19 @@ function buildNode(
     const d = pathFromPoints(node.points, !!node.closed, smooth);
     const baseSeed = sceneSeed ^ node.seed;
 
+    // A node that will later morphTo() gets a single static rendering instead of the usual
+    // boil variants — cycling to an un-morphed variant mid-boil would make the morphed
+    // shape visibly snap back to its original geometry every ~0.1s.
+    const hasMorph = node.animations.some((a) => a.kind === "morphTo");
+    const variantCount = hasMorph ? 1 : BOIL_VARIANTS;
+
     // Wrapped in its own group so drawOn can mask the whole rendered shape (stroke pass(es)
     // AND fill/hachure alike) as one unit, rather than needing to classify rough.js's
     // sub-elements by stroke vs. fill — which breaks for hachure/cross-hatch fills, since
     // rough.js renders those as *stroked* line segments too.
     const artGroup = document.createElementNS(SVG_NS, "g");
     const variants: SVGGElement[] = [];
-    for (let i = 0; i < BOIL_VARIANTS; i++) {
+    for (let i = 0; i < variantCount; i++) {
       const opts = roughOptionsFor(node.style ?? {}, baseSeed + i * 7919, !!node.closed);
       const rendered = rc.path(d, opts);
       const variantWrap = document.createElementNS(SVG_NS, "g");
@@ -244,7 +251,7 @@ function buildNode(
       variants.push(variantWrap);
     }
     g.appendChild(artGroup);
-    boilTargets.push({ variants });
+    if (!hasMorph) boilTargets.push({ variants });
 
     cleanPathD = d;
     strokeWidthPx = strokeWidthOf(node.style?.weight);
@@ -258,7 +265,7 @@ function buildNode(
     }
   }
 
-  applyAnimations(g, node, tl, cleanPathD, strokeWidthPx, closed, points);
+  applyAnimations(g, node, tl, cleanPathD, strokeWidthPx, closed, points, rc, sceneSeed);
 }
 
 function applyInitialTransform(g: SVGGElement, node: SerializedNode): void {
@@ -307,7 +314,9 @@ function applyAnimations(
   cleanPathD: string | null,
   strokeWidthPx: number,
   closed: boolean,
-  points: Point[] | null
+  points: Point[] | null,
+  rc: ReturnType<typeof rough.svg>,
+  sceneSeed: number
 ): void {
   for (const op of node.animations) {
     const at = op.at ?? 0;
@@ -344,7 +353,53 @@ function applyAnimations(
       case "fadeTo":
         tl.to(g, { opacity: op.opacity, duration: op.duration ?? 0.6, ease: op.ease ?? "power2.out" }, at);
         break;
+      case "morphTo":
+        applyMorphTo(g, tl, at, op.duration ?? 0.8, op.ease ?? "power2.inOut", op.points, node, rc, sceneSeed);
+        break;
     }
+  }
+}
+
+/**
+ * Morphs the currently-visible rendering into a fresh rough.js rendering of `targetPoints`,
+ * path by path (stroke pass(es) first, then fill, matched by index — safe since both
+ * renderings use the same style/seed, so rough.js produces the same *number* of paths for
+ * either geometry). The target is rendered once into a hidden holder purely so MorphSVGPlugin
+ * has real path elements to read `d` from; it's never itself shown.
+ */
+function applyMorphTo(
+  g: SVGGElement,
+  tl: gsap.core.Timeline,
+  at: number,
+  duration: number,
+  ease: string,
+  targetPoints: Point[],
+  node: SerializedNode,
+  rc: ReturnType<typeof rough.svg>,
+  sceneSeed: number
+): void {
+  const artGroup = g.querySelector(":scope > g") as SVGGElement | null;
+  const variantWrap = artGroup?.querySelector(":scope > g") as SVGGElement | null;
+  if (!artGroup || !variantWrap) return;
+
+  const smooth = node.style?.smooth ?? true;
+  const closed = !!node.closed;
+  const targetD = pathFromPoints(targetPoints, closed, smooth);
+  const baseSeed = sceneSeed ^ node.seed;
+  const opts = roughOptionsFor(node.style ?? {}, baseSeed, closed);
+  const targetRendered = rc.path(targetD, opts);
+
+  const hiddenHolder = document.createElementNS(SVG_NS, "g");
+  hiddenHolder.setAttribute("display", "none");
+  hiddenHolder.appendChild(targetRendered);
+  g.appendChild(hiddenHolder);
+
+  const sourcePaths = Array.from(variantWrap.querySelectorAll("path")) as SVGPathElement[];
+  const targetPaths = Array.from(hiddenHolder.querySelectorAll("path")) as SVGPathElement[];
+  const count = Math.min(sourcePaths.length, targetPaths.length);
+
+  for (let i = 0; i < count; i++) {
+    tl.to(sourcePaths[i], { morphSVG: targetPaths[i], duration, ease }, at);
   }
 }
 

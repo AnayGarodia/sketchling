@@ -41,6 +41,8 @@ Tier 0 lint (off-canvas, degenerate shapes, heavy overlap, off-center compositio
 - `sketch.group(children)` — groups nodes so they move/scale/rotate together. `.stagger(each, {duration, at, ease, effect})` choreographs children's entrances with rhythm.
 - `sketch.text(str, x, y, style, {size?})` — hand-lettered text. Lowercase a-z, digits, basic punctuation (`. , ! ? ' -`); no case distinction. `size` is the approximate letter height in pixels (default `48`), not a raw scale multiplier. Returns a `Group` of one Stroke per letter-stroke — animate with `.stagger()` for a letter-by-letter reveal, or leave it static.
 - `sketch.film({width, height, background})` — cuts several independent `Scene`s together (see Film below).
+- `sketch.arrow(from, to, style, {headSize?, headAngle?})` — a shaft plus a two-stroke head, angled toward `to`. Thin composition, returns a `Group`.
+- `sketch.speechBubble(x, y, width, height, style, {tailAt?, tailSize?})` — a rounded rectangle with a triangular tail (`tailAt`: `"bottom-left" | "bottom-center" | "bottom-right" | "top-left" | "top-center" | "top-right"`). One closed stroke.
 
 All points are `[x, y]` pairs in the scene's own absolute canvas coordinates — draw shapes directly where they should appear.
 
@@ -55,6 +57,7 @@ Every node: `.drawOn({at, duration, ease})`, `.appear(...)`, `.moveTo(x, y, ...)
 - `drawOn`'s `duration` is optional — omitted, it scales with the path's own length.
 - `moveTo(x, y)` is a true absolute position: the node's own geometric center ends up at canvas `(x, y)`, regardless of its current position. `moveBy(dx, dy)` is relative.
 - `.pivotAt(x, y)` (any node) anchors `rotateTo`/`scaleTo` at an absolute canvas point instead of the node's own center — needed for e.g. a limb that should swing from a joint, not its own midpoint.
+- `.morphTo(points, {at, duration, ease})` — a drawn stroke/loop/blob reshapes into new points instead of a new shape appearing (via GSAP's MorphSVGPlugin). Color/fill style stay the same, only geometry changes. Disables line-boil on that node (avoids a visible snap-back mid-morph). Not available on `Group`/`sketch.text()` nodes.
 - `.drawOn()` only reveals `stroke`/`blob`/`loop` nodes and `sketch.text()` groups — a plain `Group` has no single path to trace, so `.drawOn()` on one is a no-op.
 - A drawing doesn't have to go still once finished: chain `moveBy`/`rotateTo`/`scaleTo`/`fadeTo` after a `drawOn` window closes for motion that continues past the reveal. Optional, not an expectation.
 - Two shapes drawing at once reads as two hands — sequential `drawOn` windows with a short gap is the default worth reaching for, but nothing prevents overlap when that's the actual effect wanted.

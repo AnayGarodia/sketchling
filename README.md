@@ -43,14 +43,14 @@ If you're working inside a clone of this repo rather than a published install, `
 
 ## Gallery
 
-Eleven scenes, different corners of the vocabulary — source for all of them is in `examples/`, and each one renders as an animation (`--video`), not just a still. Nothing in these scenes goes still the instant it's drawn.
+Thirteen scenes, different corners of the vocabulary — source for all of them is in `examples/`, and each one renders as an animation (`--video`), not just a still. Nothing in these scenes goes still the instant it's drawn.
 
 | | | |
 |---|---|---|
 | ![keyhole laptop](docs/keyhole-laptop.png) | ![doodle flourish](docs/doodle-flourish.png) | ![waving character](docs/waving-character.png) |
 | ![rocket liftoff](docs/rocket-liftoff.png) | ![coffee steam](docs/coffee-steam.png) | ![jellyfish drift](docs/jellyfish-drift.png) |
 | ![hot air balloon](docs/hot-air-balloon.png) | ![signpost hello](docs/signpost-hello.png) | ![moonlit lighthouse](docs/moonlit-lighthouse.png) |
-| ![film: seed to bloom](docs/film-seed-to-bloom.png) | | |
+| ![film: seed to bloom](docs/film-seed-to-bloom.png) | ![shapeshifting blob](docs/shapeshifting-blob.png) | ![map directions](docs/map-directions.png) |
 
 Boxy geometry with solid fills, hachure and cross-hatch texture, pure open-stroke linework with no fills at all, an organic blob-built character that waves once it's drawn, a rocket that launches off the top of the frame leaving its exhaust behind, rising coffee steam that drifts and fades after it draws, a jellyfish with independently-waving tentacles and a slow breathing pulse, a hot-air balloon drifting through clouds, a signpost with a hand-lettered caption, a night lighthouse sweeping its beam, and a three-scene `sketch.film()` sequence cutting from seed to bloom.
 
@@ -72,12 +72,16 @@ The rest of the gallery is the same test run against different agents entirely: 
   ```
 - `sketch.text(str, x, y, style, {size?})` — hand-lettered text: lowercase a-z, digits, basic punctuation, no case distinction (uppercase input reuses the lowercase glyph). `size` is the approximate letter height in pixels (default `48`), like a font-size — not a raw scale multiplier. There's no outline-font renderer behind this, just a hand-plotted alphabet — enough for a caption or a title, not a general typesetting system. Returns a `Group` of per-letter strokes; animate with `.stagger()` for a letter-by-letter reveal.
 - `sketch.film({width, height, background})` — cuts several independent `Scene`s together into one render (see Film below).
+- `sketch.arrow(from, to, style, {headSize?, headAngle?})` — a shaft plus a two-stroke head, angled from `from` toward `to`. A thin geometric composition (the same construction as hand-plotting one), not a new primitive type — returns a `Group`.
+- `sketch.speechBubble(x, y, width, height, style, {tailAt?, tailSize?})` — a rounded rectangle with a triangular tail, `tailAt` one of `"bottom-left" | "bottom-center" | "bottom-right" | "top-left" | "top-center" | "top-right"` (default `"bottom-left"`). One closed stroke — draws and fills as a single shape.
 
 **Style:** `color`, `weight` (`"light" | "confident" | "bold"` or a number), `looseness` (0–1, precise → wild — perturbs both the shape's outline and the render jitter), `energy` (`"calm" | "quick" | "frantic"`), `smooth` (spline through points for organic shapes vs. straight edges for boxes/wedges — default `true`), `fill` (`{ color, style: "hachure" | "cross-hatch" | "solid" | "zigzag" | "dots", density, angle }`).
 
 **Animation:** every node — `.drawOn({at, duration, ease})` (the line draws itself; `duration` is optional — omitted, it's derived from the path's own length, so a long outline doesn't flash on screen as fast as a short one), `.appear(...)` (fade in), `.moveTo(x, y, ...)`, `.moveBy(dx, dy, ...)`, `.scaleTo(s, ...)`, `.rotateTo(deg, ...)`, `.fadeTo(opacity, ...)`. `at` is an absolute timeline position in seconds, shared across the whole scene — the same vocabulary Manim's `self.play` gives you, but for a browser timeline instead of a math diagram. `.pivotAt(x, y)` anchors `rotateTo`/`scaleTo` at an absolute canvas point instead of the shape's own center — a raised arm should swing from the shoulder, not spin around its own midpoint (see `waving-character.ts`).
 
 `moveTo(x, y)` is a true absolute position — the node's own geometric center lands on canvas `(x, y)`, regardless of where it currently sits, even after earlier `moveBy`/`moveTo` calls. `moveBy(dx, dy)` is relative to wherever the node currently is.
+
+`.morphTo(points, {at, duration, ease})` — a drawn stroke/loop/blob reshaping into a new set of points, rather than a new shape appearing (via [GSAP's MorphSVGPlugin](https://gsap.com/docs/v3/Plugins/MorphSVGPlugin/)). Color and fill style stay the same; only the geometry changes. Disables line-boil on that node (re-jittering between un-morphed variants would make it visibly snap back mid-animation) — a small, deliberate tradeoff for a shape that's actively changing rather than sitting still. Not available on `Group` or `sketch.text()` nodes, same restriction as `drawOn`.
 
 A single scene animates only what it's told to — nothing loops or idles on its own. `.drawOn()` only reveals `stroke`/`blob`/`loop` nodes and the groups `sketch.text()` builds; calling it on a plain `Group` is a no-op, since a group has no single path to trace (mask each child individually, or use `.stagger()`, instead).
 
@@ -128,7 +132,7 @@ Early and opinionated by design: v1 targets one aesthetic (flat, hand-drawn line
 
 If you're using [Claude Code](https://claude.com/claude-code) inside this repo, `.claude/skills/sketchling/` is available and teaches the vocabulary directly — no README round-trip needed.
 
-Not yet built: more shape helpers (`sketch.arrow()`, `sketch.speechBubble()`, etc.) as thin geometric compositions of the existing primitives, not a curated asset library — that's a deliberate non-goal, see "Why" above; shape-to-shape morphing (GSAP's MorphSVGPlugin is already an installed dependency, unused so far).
+Not yet built: more shape helpers beyond `arrow`/`speechBubble` (a star, a checkmark) as thin geometric compositions of the existing primitives, not a curated asset library — that's a deliberate non-goal, see "Why" above; camera-level composition within a single scene (pan/zoom), as opposed to `Film`'s scene-to-scene cuts.
 
 ## Contributing
 

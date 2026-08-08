@@ -4,6 +4,7 @@ import { Group } from "./group.js";
 import { Scene, type SceneOptions } from "./scene.js";
 import { Film, type FilmOptions } from "./film.js";
 import { buildText } from "./font.js";
+import { buildArrow, buildSpeechBubble, type ArrowOptions, type SpeechBubbleOptions } from "./shapes.js";
 import type { NodeStyle, Point } from "./types.js";
 
 export const sketch = {
@@ -31,5 +32,15 @@ export const sketch = {
    * approximate letter height in pixels (default 48), not a raw scale multiplier. */
   text(str: string, x: number, y: number, style: NodeStyle = {}, opts: { size?: number } = {}): Group {
     return buildText(str, x, y, style, opts.size);
+  },
+  /** A shaft plus a two-stroke head, angled to point from `from` toward `to` — a thin
+   * composition of stroke(), the same construction as hand-plotting one, parameterized. */
+  arrow(from: Point, to: Point, style: NodeStyle = {}, opts: ArrowOptions = {}): Group {
+    return buildArrow(from, to, style, opts);
+  },
+  /** A rounded rectangle with a triangular tail — one closed stroke, draws and fills as a
+   * single shape. `tailAt` picks which corner-ish position the tail points from. */
+  speechBubble(x: number, y: number, width: number, height: number, style: NodeStyle = {}, opts: SpeechBubbleOptions = {}): Stroke {
+    return buildSpeechBubble(x, y, width, height, style, opts);
   },
 };

@@ -46,7 +46,8 @@ export type AnimOp =
   | ({ kind: "moveBy"; dx: number; dy: number } & TimingOpts)
   | ({ kind: "scaleTo"; scale: number } & TimingOpts)
   | ({ kind: "rotateTo"; degrees: number } & TimingOpts)
-  | ({ kind: "fadeTo"; opacity: number } & TimingOpts);
+  | ({ kind: "fadeTo"; opacity: number } & TimingOpts)
+  | ({ kind: "morphTo"; points: Point[] } & TimingOpts);
 
 export interface SerializedNode {
   id: string;
