@@ -87,7 +87,7 @@ export interface Mesh3DFaceData {
 
 export interface SerializedNode {
   id: string;
-  type: "stroke" | "blob" | "group" | "mesh3d" | "limb" | "connector" | "particles";
+  type: "stroke" | "blob" | "group" | "mesh3d" | "limb" | "connector" | "particles" | "sound";
   points?: Point[];
   closed?: boolean;
   style?: NodeStyle;
@@ -147,6 +147,18 @@ export interface SerializedNode {
   particlesSizeMin?: number;
   particlesSizeMax?: number;
   particlesFade?: boolean;
+  // sound only: one scheduled note or hit — `soundAt` is this node's own absolute scene-
+  // timeline position (in Scene-local seconds; a Film shifts it by that entry's own cut
+  // offset when collecting audio, the same offset its visual timeline already applies via
+  // masterTl.add — see renderer.ts's mountFilm). `soundPitch` is a MIDI note number, or
+  // `null` for an unpitched hit. The 2D fields above (points/closed) are unused here, same
+  // convention as mesh3d/limb/connector/particles.
+  soundPitch?: number | null;
+  soundAt?: number;
+  soundDuration?: number;
+  soundInstrument?: string;
+  soundVelocity?: number;
+  soundPan?: number;
 }
 
 export interface GradientStop {

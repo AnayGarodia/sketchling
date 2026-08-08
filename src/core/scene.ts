@@ -6,6 +6,7 @@ import { Mesh3D } from "./mesh3d.js";
 import { Limb } from "./limb.js";
 import { Connector } from "./connector.js";
 import { Particles } from "./particles.js";
+import { Sound } from "./sound.js";
 import type { RenderLook, SceneBackground, SerializedNode, SerializedScene } from "./types.js";
 import { hashSeed } from "./geometry.js";
 
@@ -147,6 +148,14 @@ function serializeNode(node: SketchNode): SerializedNode {
       particlesGravity: node.gravity, particlesLifetime: node.lifetime,
       particlesDuration: node.duration, particlesEmitAt: node.emitAt,
       particlesSizeMin: node.sizeMin, particlesSizeMax: node.sizeMax, particlesFade: node.fade,
+    };
+  }
+  if (node instanceof Sound) {
+    return {
+      id: node.id, type: "sound", style: node.style, transform: node.transform,
+      animations: node.animations, seed: node.seed,
+      soundPitch: node.pitch, soundAt: node.at, soundDuration: node.duration,
+      soundInstrument: node.instrument, soundVelocity: node.velocity, soundPan: node.pan,
     };
   }
   if (node instanceof Stroke) {

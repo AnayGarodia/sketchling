@@ -11,6 +11,7 @@ import { walk, type WalkOptions, type WalkResult } from "./gait.js";
 import { Connector } from "./connector.js";
 import { Particles, type ParticleOpts } from "./particles.js";
 import { quickRig, type QuickRig, type QuickRigOpts } from "./quickrig.js";
+import { Sound, type SoundOpts } from "./sound.js";
 import type { SketchNode } from "./node.js";
 import type { NodeStyle, Point, Point3 } from "./types.js";
 
@@ -108,5 +109,17 @@ export const sketch = {
    * joints on an unusual shape. */
   quickRig(body: Stroke | Group, opts: QuickRigOpts): QuickRig {
     return quickRig(body, opts);
+  },
+  /** One scheduled note or hit — sketchling's only audio primitive, on the same scene-
+   * global `at` timeline every animation already uses. `pitch` is scientific pitch notation
+   * ("C4"), a raw MIDI number, or `null` for an unpitched percussive hit. `instrument`
+   * names a voice the renderer knows ("piano", "strings", "pad", "pluck", "thud", "brush",
+   * ...); melodic instruments are sample-based where a real sample set is available,
+   * percussive/effect voices are always synthesized. No chord/melody/mood helper on top —
+   * a chord is several sketch.sound() calls at the same `at`; composing them is the
+   * caller's job, the same "primitives, not a curated library" boundary the visual side
+   * draws around shape helpers. */
+  sound(pitch: string | number | null, opts: SoundOpts = {}): Sound {
+    return new Sound(pitch, opts);
   },
 };

@@ -120,6 +120,11 @@ export function mountLit3D(scene: SerializedScene, container: HTMLElement): Moun
       render();
     },
     totalDuration: () => tl.duration(),
+    // lit3d/toon3d doesn't collect sketch.sound() nodes yet — a genuinely separate pipeline
+    // from buildSceneInto (see this file's own doc comment), not wired up to audio in this
+    // first pass. Empty, not an error: a mesh3d-only scene with sound in it renders silently
+    // rather than failing, same as any other "not on this pipeline yet" gap.
+    soundEvents: [],
   };
 }
 

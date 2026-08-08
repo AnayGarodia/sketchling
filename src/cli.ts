@@ -267,26 +267,39 @@ async function renderVideo(
 
   // Cutting the video on the exact last drawn frame reads as an abrupt stop — hold the
   // settled state for a beat so the ending registers before it cuts.
-  const frameCount = Math.max(1, Math.ceil((totalDuration + HOLD_SECONDS) * fps));
+  const heldDuration = totalDuration + HOLD_SECONDS;
+  const frameCount = Math.max(1, Math.ceil(heldDuration * fps));
   for (let i = 0; i < frameCount; i++) {
-    const t = Math.min(i / fps, totalDuration + HOLD_SECONDS);
+    const t = Math.min(i / fps, heldDuration);
     const framePath = path.join(framesDir, `frame-${String(i).padStart(6, "0")}.png`);
     await withTimeout(captureFrame(page, cdp, t, framePath, false, postProcess), FRAME_TIMEOUT_MS, `capture frame ${i}`);
     if (i % 10 === 0 || i === frameCount - 1) console.log(`frame ${i + 1}/${frameCount}`);
   }
 
+  // Rendered for exactly the same heldDuration the video frames cover, so a muxed audio
+  // track ends up the same length as the video without needing -shortest to paper over a
+  // mismatch. Empty string means the scene has no sketch.sound() nodes at all — skip
+  // muxing entirely so every existing silent scene renders exactly as it did before audio
+  // support existed, not a video with an empty/silent audio track bolted on.
+  const audioBase64: string = await withTimeout(
+    page.evaluate((d) => (window as any).__sketchling.renderAudio(d), heldDuration),
+    FRAME_TIMEOUT_MS,
+    "render audio"
+  );
+  let audioPath: string | undefined;
+  if (audioBase64) {
+    audioPath = path.join(workdir, "audio.wav");
+    writeFileSync(audioPath, Buffer.from(audioBase64, "base64"));
+  }
+
   const resolvedOut = path.resolve(process.cwd(), outPath);
-  await runFfmpeg([
-    "-y",
-    "-framerate",
-    String(fps),
-    "-i",
-    path.join(framesDir, "frame-%06d.png"),
-    "-pix_fmt",
-    "yuv420p",
-    resolvedOut,
-  ]);
-  console.log(`Rendered ${frameCount} frames (${totalDuration.toFixed(2)}s @ ${fps}fps) -> ${resolvedOut}`);
+  const ffmpegArgs = ["-y", "-framerate", String(fps), "-i", path.join(framesDir, "frame-%06d.png")];
+  if (audioPath) ffmpegArgs.push("-i", audioPath, "-c:a", "aac", "-shortest");
+  ffmpegArgs.push("-pix_fmt", "yuv420p", resolvedOut);
+  await runFfmpeg(ffmpegArgs);
+  console.log(
+    `Rendered ${frameCount} frames (${totalDuration.toFixed(2)}s @ ${fps}fps)${audioPath ? " with audio" : ""} -> ${resolvedOut}`
+  );
 }
 
 function runFfmpeg(args: string[]): Promise<void> {

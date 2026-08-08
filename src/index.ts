@@ -13,6 +13,8 @@ export { Particles, particles } from "./core/particles.js";
 export type { ParticleOpts } from "./core/particles.js";
 export { quickRig } from "./core/quickrig.js";
 export type { QuickRig, QuickRigOpts } from "./core/quickrig.js";
+export { Sound, sound, toMidi } from "./core/sound.js";
+export type { SoundOpts } from "./core/sound.js";
 export type {
   Point,
   Point3,

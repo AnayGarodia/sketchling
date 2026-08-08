@@ -90,11 +90,29 @@ interface PendingParticleEmitter {
   items: ParticleParams[];
 }
 
+/** One scheduled note or hit, with `at` already resolved to the containing Renderable's own
+ * master timeline (Scene-local seconds for a plain Scene; shifted by that entry's own cut
+ * offset for a Film — see mountFilm). No live per-frame resolution needed, unlike springs/
+ * connectors/particles: a sound's params are fixed at build time, so collecting these once
+ * during the initial build is enough — there's no soundsPostSeek. */
+export interface SoundEvent {
+  pitch: number | null;
+  at: number;
+  duration: number;
+  instrument: string;
+  velocity: number;
+  pan: number;
+}
+
 export interface MountResult {
   svg: SVGSVGElement;
   timeline: gsap.core.Timeline;
   seekTo: (t: number) => void;
   totalDuration: () => number;
+  // Every sketch.sound() in the renderable, `at` already resolved to this timeline's own
+  // master clock. Empty for a scene under "lit3d"/"toon3d" — that pipeline doesn't collect
+  // sound events yet (see renderer3d.ts's own doc comment).
+  soundEvents: SoundEvent[];
 }
 
 /** Dispatches on `renderable.kind` (scene vs. film) and, for a scene, on `look` — the one
@@ -133,12 +151,14 @@ export function mount(scene: SerializedScene, container: HTMLElement): MountResu
   const rc = rough.svg(svg);
   const tl = gsap.timeline({ paused: true });
   const boilTargets: BoilTarget[] = [];
+  const soundEvents: SoundEvent[] = [];
 
-  const postSeek = buildSceneInto(scene, svg, rc, tl, boilTargets);
+  const postSeek = buildSceneInto(scene, svg, rc, tl, boilTargets, soundEvents);
 
   return {
     svg,
     timeline: tl,
+    soundEvents,
     // Block body deliberately: tl.seek() returns the Timeline itself, and callers invoke
     // this through Playwright's page.evaluate() — an implicit return would hand the whole
     // GSAP timeline object graph back for CDP serialization, which never completes.
@@ -229,19 +249,42 @@ export function mountFilm(film: SerializedFilm, container: HTMLElement): MountRe
   const masterTl = gsap.timeline({ paused: true });
   const allBoilTargets: BoilTarget[] = [];
   const scenePostSeeks: Array<{ postSeek: (t: number) => void; enterAt: number }> = [];
+  const soundEvents: SoundEvent[] = [];
 
   let cursor = 0;
   let prevWrapper: SVGGElement | null = null;
 
   film.entries.forEach((entry) => {
     const { scene, transition, transitionDuration, hold } = entry;
-    const scale = Math.min(film.width / scene.width, film.height / scene.height);
-    const offsetX = (film.width - scene.width * scale) / 2;
-    const offsetY = (film.height - scene.height * scale) / 2;
+    // Scale/center against the scene's own OUTPUT FRAME (viewportWidth/Height — equal to
+    // width/height unless scene.camera() is panning/zooming within a bigger world), not its
+    // world size. A standalone render already draws this distinction (see cli.ts's
+    // outputSize) — scaling by the world instead shrinks a wide-camera-world scene by
+    // however much bigger its world is than its own viewport, which reads as the scene
+    // rendering tiny and mis-positioned the instant it uses a camera inside a Film (a real
+    // bug this fixes, not a style choice).
+    const scale = Math.min(film.width / scene.viewportWidth, film.height / scene.viewportHeight);
+    const offsetX = (film.width - scene.viewportWidth * scale) / 2;
+    const offsetY = (film.height - scene.viewportHeight * scale) / 2;
 
     const wrapper = document.createElementNS(SVG_NS, "g");
     wrapper.setAttribute("transform", `translate(${offsetX}, ${offsetY}) scale(${scale})`);
     gsap.set(wrapper, { opacity: 0 });
+    // A standalone render gets its camera-viewport crop for free from the outer <svg>'s own
+    // viewBox (sized to viewportWidth/Height, which naturally clips anything the camera pans
+    // out of view). A Film has one shared <svg> across every entry, so each wrapper needs
+    // its own clip to the same viewportWidth/Height rect — without it, content a camera scene
+    // pans away from is still in the DOM and still visible, spilling past the frame instead
+    // of being cropped out of it.
+    const clipId = `sk-film-clip-${maskIdCounter++}`;
+    const clipPath = document.createElementNS(SVG_NS, "clipPath");
+    clipPath.setAttribute("id", clipId);
+    const clipRect = document.createElementNS(SVG_NS, "rect");
+    clipRect.setAttribute("width", String(scene.viewportWidth));
+    clipRect.setAttribute("height", String(scene.viewportHeight));
+    clipPath.appendChild(clipRect);
+    defs.appendChild(clipPath);
+    wrapper.setAttribute("clip-path", `url(#${clipId})`);
     svg.appendChild(wrapper);
 
     // Deliberately NOT `{ paused: true }`: a child timeline created paused stays inert
@@ -251,7 +294,8 @@ export function mountFilm(film: SerializedFilm, container: HTMLElement): MountRe
     // film seek-driven rather than auto-playing.
     const sceneTl = gsap.timeline();
     const sceneBoilTargets: BoilTarget[] = [];
-    const scenePostSeek = buildSceneInto(scene, wrapper, rc, sceneTl, sceneBoilTargets);
+    const entrySoundEvents: SoundEvent[] = [];
+    const scenePostSeek = buildSceneInto(scene, wrapper, rc, sceneTl, sceneBoilTargets, entrySoundEvents);
     allBoilTargets.push(...sceneBoilTargets);
 
     const contentDuration = sceneTl.duration();
@@ -263,6 +307,10 @@ export function mountFilm(film: SerializedFilm, container: HTMLElement): MountRe
     const enterAt = Math.max(0, cursor - fadeDur);
     masterTl.add(sceneTl, enterAt);
     scenePostSeeks.push({ postSeek: scenePostSeek, enterAt });
+    // Same offset its visual timeline already gets via masterTl.add(sceneTl, enterAt) above
+    // — a sound authored at `at: 2` in a scene entering the film at enterAt=5 actually plays
+    // at master time 7, exactly like a moveTo at that scene-local time actually happens then.
+    for (const s of entrySoundEvents) soundEvents.push({ ...s, at: s.at + enterAt });
 
     if (isFade) {
       masterTl.fromTo(wrapper, { opacity: 0 }, { opacity: 1, duration: fadeDur, ease: "sine.inOut" }, enterAt);
@@ -282,6 +330,7 @@ export function mountFilm(film: SerializedFilm, container: HTMLElement): MountRe
   return {
     svg,
     timeline: masterTl,
+    soundEvents,
     seekTo: (t: number) => {
       masterTl.seek(t, false);
       applyBoilAt(allBoilTargets, t);
@@ -306,7 +355,8 @@ function buildSceneInto(
   container: SVGElement,
   rc: ReturnType<typeof rough.svg>,
   tl: gsap.core.Timeline,
-  boilTargets: BoilTarget[]
+  boilTargets: BoilTarget[],
+  soundEvents: SoundEvent[]
 ): (t: number) => void {
   currentLook = scene.look ?? "ink";
 
@@ -332,7 +382,7 @@ function buildSceneInto(
   const pendingParticles: PendingParticleEmitter[] = [];
   for (const node of scene.children) {
     const depth = node.type === "group" && node.depth !== undefined ? node.depth : DEFAULT_LAYER_DEPTH;
-    buildNode(node, layerGroups.get(depth)!, rc, tl, scene.seed, boilTargets, pendingSprings, pendingConnectors, pendingParticles);
+    buildNode(node, layerGroups.get(depth)!, rc, tl, scene.seed, boilTargets, pendingSprings, pendingConnectors, pendingParticles, soundEvents);
   }
 
   const springsPostSeek = buildSprings(pendingSprings, scene, tl, container);
@@ -345,6 +395,16 @@ function buildSceneInto(
   // fixed params), so ordering relative to the others doesn't matter.
   const particlesPostSeek = buildParticles(pendingParticles, rc, tl);
   const cameraPostSeek = applyCameraLayers(layerGroups, scene, tl, container);
+
+  // Same reservation particles needed for the same reason: a sketch.sound() is never
+  // itself a tl.to() call, so nothing naturally extends the timeline to cover it — without
+  // this, tl.duration() (and Film's own per-entry contentDuration, which reads this same
+  // number) stops at the last visual animation and every note past that point gets muxed
+  // into audio.wav but never actually reached by a --video export or a Film cut's timing.
+  let desiredEnd = tl.duration();
+  for (const s of soundEvents) desiredEnd = Math.max(desiredEnd, s.at + s.duration);
+  if (desiredEnd > tl.duration()) tl.set({}, {}, desiredEnd);
+
   return (t: number) => {
     cameraPostSeek(t);
     springsPostSeek(t);
@@ -771,13 +831,31 @@ function buildNode(
   boilTargets: BoilTarget[],
   pendingSprings: PendingSpring[],
   pendingConnectors: PendingConnector[],
-  pendingParticles: PendingParticleEmitter[]
+  pendingParticles: PendingParticleEmitter[],
+  soundEvents: SoundEvent[]
 ): void {
   const g = document.createElementNS(SVG_NS, "g");
   g.setAttribute("data-id", node.id);
   applyInitialTransform(g, node);
   parent.appendChild(g);
   collectSprings(node, g, pendingSprings);
+
+  if (node.type === "sound") {
+    // No visual footprint at all — not even the usual artGroup/applyAnimations dance the
+    // other build-time-fixed node types (particles, connector) go through, since there's
+    // nothing on screen for moveTo/fadeTo/etc. to mean anything against. `at` is collected
+    // as authored here; a Film shifts it by that entry's own cut offset afterward (see
+    // mountFilm), the same way its visual timeline already gets offset.
+    soundEvents.push({
+      pitch: node.soundPitch ?? null,
+      at: node.soundAt ?? 0,
+      duration: node.soundDuration ?? 0.4,
+      instrument: node.soundInstrument ?? "piano",
+      velocity: node.soundVelocity ?? 0.8,
+      pan: node.soundPan ?? 0,
+    });
+    return;
+  }
 
   if (node.type === "particles") {
     const artGroup = document.createElementNS(SVG_NS, "g");
@@ -904,7 +982,7 @@ function buildNode(
 
   if (node.children) {
     for (const child of node.children) {
-      buildNode(child, g, rc, tl, sceneSeed, boilTargets, pendingSprings, pendingConnectors, pendingParticles);
+      buildNode(child, g, rc, tl, sceneSeed, boilTargets, pendingSprings, pendingConnectors, pendingParticles, soundEvents);
     }
   }
 
