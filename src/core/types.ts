@@ -146,7 +146,11 @@ export type SceneBackground = string | { stops: GradientStop[]; direction?: "hor
 //   and nearest-neighbor upscaled back to size (a raster post-process applied in cli.ts
 //   after the browser screenshot, not a DOM/SVG-level change) — a blocky, low-res game-art
 //   look. Requires ffmpeg on PATH, same as --video already does.
-export type RenderLook = "ink" | "flat" | "clay" | "watercolor" | "lit3d" | "pixel";
+// - "toon3d": lit3d's exact pipeline (same camera, lights, shadows, mesh3d-only scope) with
+//   a stepped/cel gradient map on each mesh's material instead of a continuous PBR one —
+//   flat toon bands instead of a smooth roughness falloff. A shading variant of lit3d, not
+//   a separate pipeline; see renderer3d.ts.
+export type RenderLook = "ink" | "flat" | "clay" | "watercolor" | "lit3d" | "pixel" | "toon3d";
 
 export interface SerializedScene {
   kind: "scene";

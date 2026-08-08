@@ -71,12 +71,13 @@ export interface MountResult {
 
 /** Dispatches on `renderable.kind` (scene vs. film) and, for a scene, on `look` — the one
  * entry point the browser harness calls, and the one place that picks which rendering
- * pipeline runs at all. `look: "lit3d"` is a genuinely separate pipeline (WebGL/Three.js,
- * not SVG/rough.js), not another branch inside this file's own builders — see
- * renderer3d.ts's own doc comment for why. */
+ * pipeline runs at all. `look: "lit3d"`/`"toon3d"` are a genuinely separate pipeline
+ * (WebGL/Three.js, not SVG/rough.js), not another branch inside this file's own builders —
+ * see renderer3d.ts's own doc comment for why (toon3d is a shading variant of the same
+ * mountLit3D, not a second WebGL pipeline). */
 export function mountRenderable(renderable: Renderable, container: HTMLElement): MountResult {
   if (renderable.kind === "film") return mountFilm(renderable, container);
-  if (renderable.look === "lit3d") return mountLit3D(renderable, container);
+  if (renderable.look === "lit3d" || renderable.look === "toon3d") return mountLit3D(renderable, container);
   return mount(renderable, container);
 }
 

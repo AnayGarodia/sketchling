@@ -5,14 +5,16 @@ import type { MountResult } from "./renderer.js";
 
 /**
  * A second, genuinely separate rendering pipeline (WebGL/Three.js, not SVG/rough.js) for
- * scenes with `look: "lit3d"` — real directional + ambient lighting and cast shadows on
- * mesh3d nodes, driven by the exact same spin3d/moveTo/moveBy/scaleTo/squashTo ops as the
- * ink/flat/clay/watercolor pipeline. Scoped honestly: only mesh3d nodes have a 3D
+ * scenes with `look: "lit3d"` or `look: "toon3d"` — real directional + ambient lighting and
+ * cast shadows on mesh3d nodes, driven by the exact same spin3d/moveTo/moveBy/scaleTo/squashTo
+ * ops as the ink/flat/clay/watercolor pipeline. Scoped honestly: only mesh3d nodes have a 3D
  * representation, so this renders those and ignores every 2D-only node (stroke, blob,
  * limb, text) in the same scene — a scene mixing both still serializes and lints
- * normally, but its 2D content simply doesn't appear in a lit3d render. This is "lit 3D
+ * normally, but its 2D content simply doesn't appear in a lit3d/toon3d render. This is "lit 3D
  * rendering," not photorealism: one key light, one fill light, PCF soft shadows,
- * MeshStandardMaterial — real-time WebGL, not a path tracer.
+ * MeshStandardMaterial — real-time WebGL, not a path tracer. "toon3d" is this same pipeline
+ * with MeshToonMaterial and a 4-step gradient map instead — same camera, same lights, same
+ * shadows, just a stepped instead of continuous response to them.
  *
  * Driven the same way the SVG pipeline drives GSAP: a paused timeline, seek to a time,
  * render exactly one frame, screenshot. Never a requestAnimationFrame loop — the CLI's
@@ -23,6 +25,8 @@ import type { MountResult } from "./renderer.js";
 export function mountLit3D(scene: SerializedScene, container: HTMLElement): MountResult {
   const width = scene.viewportWidth;
   const height = scene.viewportHeight;
+  const isToon = scene.look === "toon3d";
+  const toonGradientMap = isToon ? buildToonGradientMap() : null;
 
   const canvas = document.createElement("canvas");
   container.innerHTML = "";
@@ -89,7 +93,7 @@ export function mountLit3D(scene: SerializedScene, container: HTMLElement): Moun
   }
 
   for (const { node } of meshEntries) {
-    const mesh = buildMeshObject(node);
+    const mesh = buildMeshObject(node, toonGradientMap);
     threeScene.add(mesh);
     objects.push(mesh);
     driveNodeAnimations(mesh, node, tl, height);
@@ -143,11 +147,25 @@ function boundingRadius(vertices: Point3[]): number {
   return max || 1;
 }
 
+/** A 4-step grayscale ramp, NearestFilter so MeshToonMaterial samples hard bands instead of
+ * blending between them — the actual "cel" in cel shading. Built once per lit3d/toon3d mount
+ * and shared across every mesh in the scene (stateless, cheap, no reason to rebuild per-mesh). */
+function buildToonGradientMap(): THREE.DataTexture {
+  const steps = 4;
+  const data = new Uint8Array(steps);
+  for (let i = 0; i < steps; i++) data[i] = Math.round((i / (steps - 1)) * 255);
+  const texture = new THREE.DataTexture(data, steps, 1, THREE.RedFormat);
+  texture.magFilter = THREE.NearestFilter;
+  texture.minFilter = THREE.NearestFilter;
+  texture.needsUpdate = true;
+  return texture;
+}
+
 /** Non-indexed geometry with one uniform-colored vertex triple per triangle — flat per-face
  * shading and per-face color both need each face's vertices NOT shared with its neighbors
  * (shared vertices would Gouraud-blend colors and normals across the face boundary, which
  * reads as smooth-shaded plastic, not the crisp flat-shaded facets a die's faces need). */
-function buildMeshObject(node: SerializedNode): THREE.Mesh {
+function buildMeshObject(node: SerializedNode, toonGradientMap: THREE.DataTexture | null): THREE.Mesh {
   const vertices = node.mesh3dVertices ?? [];
   const faces = node.mesh3dFaces ?? [];
   const baseColorHex = node.style?.fill?.color ?? node.style?.color ?? "#8a8a8a";
@@ -175,12 +193,21 @@ function buildMeshObject(node: SerializedNode): THREE.Mesh {
   geometry.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
   geometry.computeVertexNormals();
 
-  const material = new THREE.MeshStandardMaterial({
-    vertexColors: true,
-    flatShading: true,
-    roughness: 0.75,
-    metalness: 0.05,
-  });
+  const material = toonGradientMap
+    ? new THREE.MeshToonMaterial({
+        vertexColors: true,
+        gradientMap: toonGradientMap,
+      })
+    : new THREE.MeshStandardMaterial({
+        vertexColors: true,
+        flatShading: true,
+        roughness: 0.75,
+        metalness: 0.05,
+      });
+  // flatShading isn't in MeshToonMaterialParameters' TS type (Material's own field, applied
+  // generically by the shader builder regardless of material class), so set it post-construction
+  // for the toon branch — same flat-per-face reasoning as the standard-material branch above.
+  if (toonGradientMap) (material as unknown as { flatShading: boolean }).flatShading = true;
 
   const mesh = new THREE.Mesh(geometry, material);
   mesh.castShadow = true;
