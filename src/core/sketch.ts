@@ -7,6 +7,7 @@ import { buildText } from "./font.js";
 import { buildArrow, buildSpeechBubble, type ArrowOptions, type SpeechBubbleOptions } from "./shapes.js";
 import { Mesh3D, box3d, icosahedron3d } from "./mesh3d.js";
 import { Limb, limb, type LimbOpts } from "./limb.js";
+import { walk, type WalkOptions, type WalkResult } from "./gait.js";
 import type { NodeStyle, Point, Point3 } from "./types.js";
 
 export const sketch = {
@@ -69,5 +70,13 @@ export const sketch = {
    * to place/orient the whole chain; ikTo only moves the end effector within it. */
   limb(rootX: number, rootY: number, len1: number, len2: number, style: NodeStyle = {}, opts: LimbOpts = {}): Limb {
     return limb(rootX, rootY, len1, len2, style, opts);
+  },
+  /** A procedural bipedal walk cycle: given a body node and two IK legs, generates a full
+   * gait (foot planting, lift-and-swing, body bob) from step count and stride length —
+   * no hand-tuned rotateTo per pose. The planted leg is provably zero-slide (see gait.ts)
+   * rather than tuned to look close. Returns { endAt } so callers can chain what follows
+   * the walk without hand-computing the total duration themselves. */
+  walk(opts: WalkOptions): WalkResult {
+    return walk(opts);
   },
 };

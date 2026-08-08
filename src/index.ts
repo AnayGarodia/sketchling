@@ -7,6 +7,7 @@ export { Film } from "./core/film.js";
 export { SketchNode } from "./core/node.js";
 export { Mesh3D, box3d, icosahedron3d } from "./core/mesh3d.js";
 export { Limb, limb } from "./core/limb.js";
+export { walk } from "./core/gait.js";
 export type {
   Point,
   Point3,
@@ -28,3 +29,4 @@ export type {
 } from "./core/types.js";
 export type { FilmOptions, AddSceneOptions } from "./core/film.js";
 export type { LimbOpts } from "./core/limb.js";
+export type { WalkLeg, WalkOptions, WalkResult } from "./core/gait.js";
