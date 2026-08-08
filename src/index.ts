@@ -5,8 +5,10 @@ export { Blob } from "./core/blob.js";
 export { Group } from "./core/group.js";
 export { Film } from "./core/film.js";
 export { SketchNode } from "./core/node.js";
+export { Mesh3D, box3d, icosahedron3d } from "./core/mesh3d.js";
 export type {
   Point,
+  Point3,
   NodeStyle,
   StrokeStyle,
   FillDef,
@@ -15,6 +17,7 @@ export type {
   Energy,
   TimingOpts,
   AnimOp,
+  Mesh3DFaceData,
   SerializedScene,
   SerializedNode,
   SerializedFilm,

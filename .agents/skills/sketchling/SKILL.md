@@ -16,6 +16,8 @@ const scene = sketch.scene({ width: 480, height: 420, background: "#7096c6", see
 export default scene;
 ```
 
+`width`/`height` are the world — where everything is authored/positioned, and what the background fills. Pass `viewport: { width, height }` too when the world is bigger than one screen and a `scene.camera()` (below) pans/zooms around inside it; omit it and the output frame is just the whole world, unchanged from every scene that isn't using a camera.
+
 ```
 sketchling render scene.ts --out preview.png            # settled end state
 sketchling render scene.ts --out mid.png --at 0.6        # a specific timeline moment
@@ -51,10 +53,66 @@ Every node: `.drawOn({at, duration, ease})`, `.appear(...)`, `.moveTo(x, y, ...)
 - `moveTo(x, y)` is a true absolute position: the node's own geometric center ends up at canvas `(x, y)`, regardless of where it currently sits (even after prior `moveBy`/`moveTo` calls). `moveBy(dx, dy)` is relative to wherever the node currently is.
 - `.pivotAt(x, y)` (on any node) anchors `rotateTo`/`scaleTo` at an absolute canvas point instead of the node's own center — needed whenever something should swing from a point other than its middle (a raised arm pivots at the shoulder, not its own midpoint).
 - `.morphTo(points, {at, duration, ease})` — a drawn stroke/loop/blob reshapes into new points instead of a new shape appearing (via GSAP's MorphSVGPlugin). Color/fill style stay the same, only geometry changes. Disables line-boil on that node (avoids a visible snap-back mid-morph). Not available on `Group`/`sketch.text()` nodes.
+- `.moveAlong(points, {at, duration, ease, rotate?})` — travels a curved path through `points` (via GSAP's MotionPathPlugin) instead of the straight-line segments a chain of `moveBy` calls would produce. `rotate: true` orients the node to face its direction of travel (off by default — most things should stay upright while they move, not pitch into the turn).
+- `.squashTo(scaleX, scaleY, {at, duration, ease})` — non-uniform scale, the basic cartoon weight/impact cue: flatten wide+short on landing, stretch tall+thin mid-jump, then snap back. Unlike `scaleTo` (uniform), this is what makes motion read as having mass instead of being a rigid shape sliding around. A believable bounce is squash on impact (~0.1-0.15s, a fast ease-out) immediately followed by an overshoot-then-settle back to `(1, 1)` (`ease: "back.out(...)"` reads as springy).
+- **`moveTo`/`moveAlong` target the node's own geometric bbox center, not whatever point you were thinking of when you built it.** For a vertically lopsided shape (a tall envelope with a small basket hanging off the bottom, a character whose head is much bigger than its feet), the bbox center can sit well away from the "obvious" reference point — animating to a path authored at, say, the *feet's* height will land the shape floating or sinking relative to where it visually should be. Work out the offset once (`your intended y − the shape's own bbox-center y`) and add it to every point in the path, or just render an early mid-motion frame (`--at`) and check the silhouette sits where you meant it to, before trusting a longer path.
 - `.drawOn()` only reveals `stroke`/`blob`/`loop` nodes and Groups built by `sketch.text()` — a plain `Group` has no single path to trace, so calling `.drawOn()` on one directly is a no-op (mask its children individually, or use `.stagger()`).
 - A drawing doesn't have to go still the moment it's finished: chain `moveBy`/`rotateTo`/`scaleTo`/`fadeTo` onto a node after its `drawOn` window closes for motion that continues past the reveal (a limb that waves, a rocket that launches, steam that drifts and fades). This is optional, not an expectation every scene needs to satisfy.
 - Two shapes drawing themselves at once reads as two hands, not one — sequential `drawOn` windows with a short gap between them is the default look worth reaching for, but scenes can absolutely overlap or run things in parallel when that's the actual effect wanted (simultaneous motion, a burst of things appearing together).
 - Every already-drawn line keeps re-jittering a few times a second on its own for as long as it's on screen (rendering detail, not something to configure) — a static scene still reads as hand-drawn rather than laser-cut, with no extra work.
+
+## Camera — panning and zooming within a world bigger than the screen
+
+```ts
+const scene = sketch.scene({ width: 4200, height: 700, viewport: { width: 640, height: 440 }, background: "#f2d4a3" });
+// ... build a world across the full 4200x700, not just the 640x440 output frame ...
+const cam = scene.camera();
+cam.panTo(500, 400, { at: 0, duration: 0 });          // starting frame
+cam.follow(someNode, { at: 2, duration: 6 });          // tracks someNode's live position, mid-tween included
+cam.zoomTo(1.3, { at: 4, duration: 1 });                // independent of pan — both can run at once
+```
+
+- `scene.camera()` returns a controller with `.panTo(x, y, opts)` (centers the viewport on a world-space point), `.zoomTo(scale, opts)` (1 = authored size, >1 closer in), and `.follow(node, opts)` (keeps the viewport centered on a node for the duration, tracking wherever its own `moveTo`/`moveBy`/`moveAlong` actually takes it — not a fixed point recorded once).
+- Every op takes the same `{at, duration, ease}` as node animations. `panTo`/`zoomTo`/`follow` all animate independent state (pan position vs. zoom level), so a `zoomTo` can run concurrently with a `follow` without fighting it.
+- This is the tool for continuity a Film cut can't give you: one continuous scene the camera moves through, instead of independent scenes stitched together (where nothing — a character, a hand-drawn craft — can just *keep going*, because every cut starts a new, unrelated Scene). Build once, travel through the world; don't rebuild the same thing at every stop.
+- A scene that never calls `.camera()` renders exactly as if this didn't exist — no cost, no behavior change.
+
+### Parallax layers — depth without literal 3D
+
+`scene.layer(depth, children?)` returns a `Group` (same API as `scene.group()`) pinned to a depth plane. When the camera pans, each layer moves by a *fraction* of that pan based on its own depth — the same illusion of depth 2D animation has always used (distant hills drift slowly behind a character that whips past fast up close), not a 3D engine.
+
+```ts
+const hills = scene.layer(0.3);   // distant — recedes, moves slowly as the camera pans
+hills.add(sketch.blob(200, 380, 140, style)).drawOn();
+
+scene.add(character);             // no .layer() call = depth 1, the default plane
+
+const branch = scene.layer(1.4);  // close foreground — pops, moves more than the camera itself
+branch.add(sketch.stroke(points, style)).drawOn();
+```
+
+- `depth` 1 (the default — anything added via `scene.add()`/`scene.group()` without going through `.layer()`) moves exactly with the camera. `< 1` recedes (background); `> 1` pops forward (foreground) and can even overshoot the camera's own motion.
+- Only visible alongside camera motion (`panTo`/`follow`) — zoom applies uniformly to every layer, only *pan* creates the differential. A scene with layers but no camera renders every layer at its authored position, flat, no offset.
+- The scene's own `background` (see Style below) always sits at the farthest-back depth, behind every `.layer()`, since it's the backdrop everything else is in front of.
+
+### Gradient backgrounds
+
+`background` accepts a flat color string (as before) or a gradient: `{ stops: [{offset, color}, ...], direction? }` (`offset` 0-1, `direction` `"vertical"` (default) or `"horizontal"`). Renders as one real SVG gradient, not hand-sketched — smooth, cheap, and a real sky/backdrop shouldn't look pen-traced. Prefer this over hand-authoring rows of solid-color band rectangles to fake a gradient; the real thing is both less code and looks better (no banding).
+
+## 3D — genuine rotating solids, sketched
+
+```ts
+const die = sketch.box3d(90, 90, 90, { color: "#241d14", weight: "confident", fill: { color: "#e8794a", style: "solid" } });
+scene.add(die);
+die.moveTo(300, 220, { at: 0, duration: 0.001 }); // place it like any 2D node
+die.spin3d(360, 720, 0, { at: 0.4, duration: 2.2, ease: "sine.inOut" }); // absolute-target rotation, degrees
+```
+
+- `sketch.box3d(w, h, d, style)`, `sketch.icosahedron3d(radius, style)`, and `sketch.mesh3d(vertices, faces, style)` (fully custom — vertices are `[x,y,z]` triples in local space, faces are `{indices, color?}` with indices wound counter-clockwise as seen from outside the solid) all return a node with the same placement API as everything else: `moveTo`/`moveBy`/`scaleTo`/`fadeTo` animate its flat on-screen position exactly like a 2D shape.
+- `.spin3d(rx, ry, rz, opts)` is the 3D-specific animation — an absolute-target rotation in degrees around each axis (matches `rotateTo`'s absolute-target convention), independent of `rotateTo` itself, which still spins the mesh's flat 2D placement. Chain multiple `spin3d` calls the way you'd chain `rotateTo`/`moveBy` — each one continues from wherever the last left off.
+- Every face is sketched with rough.js like any other shape here (a loose outline, not a crisp CAD edge) and flat-shaded by how directly it faces the mesh's own light direction (`lightDir`, defaults to an upper-left key light) — this is hand-inked 3D, not photoreal 3D. A face's fill color is the mesh's own `style.fill.color` (or `style.color`) lightened/darkened by that shading, unless the face itself sets `color`.
+- Backface culling and painter's-algorithm depth sorting happen automatically, every frame — faces facing away from the camera aren't drawn, and visible faces paint back-to-front so nearer ones correctly occlude farther ones. This assumes non-intersecting geometry: two meshes that interpenetrate, or a mesh whose own faces cross each other, have no depth order painter's-algorithm can resolve correctly.
+- A rotating mesh's whole silhouette changes every frame (which faces are even visible depends on the current rotation), so unlike a 2D shape's `cleanPathD` (computed once at build time), a mesh's paths are rebuilt on every tick its `spin3d` tween is live. That's more render cost per mesh than a static 2D shape — reach for 3D where the rotation itself is the point (a die tumbling, a globe spinning, a logo turning into place), not as a blanket upgrade for shapes that were never meant to turn.
 
 ## Film — cutting scenes together
 
@@ -73,6 +131,7 @@ For a longer sequence without a shared runtime (characters/state don't carry bet
 
 - Tier 0's "heavy overlap" warning on two shapes you nested on purpose (an eye inside a head) — expected noise, only meaningful for two *unrelated* shapes stacked by mistake.
 - A `--video` render is ~1s longer than the scene's own `totalDuration` — the CLI holds on the settled end frame before the video cuts, rather than ending on the exact last drawn frame.
+- An element that's clearly on-canvas (within `width`/`height`) but never shows up on screen, in a scene using `camera()` — the *world* can be bigger than the *viewport*, and Tier 0 lint checks against the world, not against wherever the camera happens to be framed at any given moment. Work out roughly where the camera actually is at the time an element should be visible (what's it panned/zoomed/following, and when) before assuming a placement is right.
 
 ## Verifying your own work without burning tokens
 

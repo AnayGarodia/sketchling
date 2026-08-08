@@ -5,7 +5,8 @@ import { Scene, type SceneOptions } from "./scene.js";
 import { Film, type FilmOptions } from "./film.js";
 import { buildText } from "./font.js";
 import { buildArrow, buildSpeechBubble, type ArrowOptions, type SpeechBubbleOptions } from "./shapes.js";
-import type { NodeStyle, Point } from "./types.js";
+import { Mesh3D, box3d, icosahedron3d } from "./mesh3d.js";
+import type { NodeStyle, Point, Point3 } from "./types.js";
 
 export const sketch = {
   scene(opts: SceneOptions = {}): Scene {
@@ -42,5 +43,22 @@ export const sketch = {
    * single shape. `tailAt` picks which corner-ish position the tail points from. */
   speechBubble(x: number, y: number, width: number, height: number, style: NodeStyle = {}, opts: SpeechBubbleOptions = {}): Stroke {
     return buildSpeechBubble(x, y, width, height, style, opts);
+  },
+  /** A rotating box, sketched as six flat-shaded rough.js faces reprojected every frame —
+   * a genuine 3D solid, not a flat rectangle with a drop shadow. Centered on its own
+   * origin; place it with moveTo/moveBy, spin it with .spin3d(rx, ry, rz, opts). */
+  box3d(w: number, h: number, d: number, style: NodeStyle = {}): Mesh3D {
+    return box3d(w, h, d, style);
+  },
+  /** A 20-face rotating solid — the roundest shape available from flat faces, for wherever
+   * a spinning "orb" reads better than a boxy one. Same placement/spin API as box3d. */
+  icosahedron3d(radius: number, style: NodeStyle = {}): Mesh3D {
+    return icosahedron3d(radius, style);
+  },
+  /** A fully custom 3D solid — local-space vertices plus faces wound counter-clockwise (as
+   * seen from outside the solid, matching box3d/icosahedron3d's own winding) for correct
+   * flat-shading and painter's-algorithm depth sorting. */
+  mesh3d(vertices: Point3[], faces: { indices: number[]; color?: string }[], style: NodeStyle = {}): Mesh3D {
+    return new Mesh3D(vertices, faces, style);
   },
 };

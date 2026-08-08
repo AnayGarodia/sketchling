@@ -1,4 +1,5 @@
 export type Point = [number, number];
+export type Point3 = [number, number, number];
 
 export type Weight = "light" | "confident" | "bold" | number;
 export type Energy = "calm" | "quick" | "frantic";
@@ -47,11 +48,32 @@ export type AnimOp =
   | ({ kind: "scaleTo"; scale: number } & TimingOpts)
   | ({ kind: "rotateTo"; degrees: number } & TimingOpts)
   | ({ kind: "fadeTo"; opacity: number } & TimingOpts)
-  | ({ kind: "morphTo"; points: Point[] } & TimingOpts);
+  | ({ kind: "morphTo"; points: Point[] } & TimingOpts)
+  | ({ kind: "moveAlong"; points: Point[]; rotate?: boolean } & TimingOpts)
+  | ({ kind: "squashTo"; scaleX: number; scaleY: number } & TimingOpts)
+  // Absolute-target 3D rotation, in degrees (matching rotateTo's convention — converted
+  // to radians in the renderer, not here). Independent of `rotateTo`, which still spins
+  // the mesh's flat 2D placement (its screen-space transform) same as any other node.
+  | ({ kind: "spin3d"; rx: number; ry: number; rz: number } & TimingOpts);
+
+// A scene's own viewport, animated independently of any node — pans/zooms the whole
+// canvas, or tracks a node's live position. "follow" resolves to the target node's
+// authored bbox center plus its current animated offset, read live off the DOM at
+// render time (not a fixed keyframe), so it stays locked on even while the node is
+// mid-tween.
+export type CameraOp =
+  | ({ kind: "panTo"; x: number; y: number } & TimingOpts)
+  | ({ kind: "zoomTo"; scale: number } & TimingOpts)
+  | ({ kind: "follow"; nodeId: string } & TimingOpts);
+
+export interface Mesh3DFaceData {
+  indices: number[];
+  color?: string;
+}
 
 export interface SerializedNode {
   id: string;
-  type: "stroke" | "blob" | "group";
+  type: "stroke" | "blob" | "group" | "mesh3d";
   points?: Point[];
   closed?: boolean;
   style?: NodeStyle;
@@ -59,15 +81,41 @@ export interface SerializedNode {
   animations: AnimOp[];
   seed: number;
   children?: SerializedNode[];
+  // Parallax depth for a top-level scene child (set via scene.layer()). 1 = moves 1:1
+  // with the camera (the default, identical to a node with no depth at all). <1 recedes
+  // (moves less as the camera pans — distant), >1 pops forward (moves more — near).
+  // Meaningless below the top level: a nested child just moves with its parent group.
+  depth?: number;
+  // mesh3d only: local-space vertices/faces/lighting the renderer projects and re-sketches
+  // every seek (the 2D fields above — points/closed — are unused on a mesh3d node).
+  mesh3dVertices?: Point3[];
+  mesh3dFaces?: Mesh3DFaceData[];
+  mesh3dFocalLength?: number;
+  mesh3dLightDir?: Point3;
 }
+
+export interface GradientStop {
+  offset: number; // 0..1
+  color: string;
+}
+
+export type SceneBackground = string | { stops: GradientStop[]; direction?: "horizontal" | "vertical" };
 
 export interface SerializedScene {
   kind: "scene";
+  // The world: everything is authored/positioned in this coordinate space, and the
+  // background fills exactly this rect.
   width: number;
   height: number;
-  background: string;
+  // The output frame: what's actually rendered/exported. Equals width/height (the
+  // whole world, no camera) unless the scene set a smaller viewport for the camera to
+  // pan and zoom within.
+  viewportWidth: number;
+  viewportHeight: number;
+  background: SceneBackground;
   seed: number;
   children: SerializedNode[];
+  camera: CameraOp[];
 }
 
 export type FilmTransition = "cut" | "fade";

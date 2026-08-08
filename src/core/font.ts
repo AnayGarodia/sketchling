@@ -15,9 +15,14 @@ interface GlyphStroke {
  * ascenders reach up to ~y=15, descenders down to ~y=112.
  */
 const GLYPHS: Record<string, GlyphStroke[]> = {
+  // Single-story bowl (the same shape "d" uses) plus a right-side stem that overshoots the
+  // bowl slightly at both ends — flush top-to-bottom, the stem reads as part of the bowl's
+  // own edge and the whole glyph collapses into an "o" at small sizes. The earlier version
+  // before that had a horizontal chord cutting through a closed bowl, rendering as a
+  // theta-like blob instead of a legible "a".
   a: [
-    { points: [[38, 52], [24, 48], [18, 62], [20, 80], [30, 90], [40, 86], [40, 52]], closed: true },
-    { points: [[40, 66], [22, 66]] },
+    { points: [[42, 58], [28, 52], [18, 62], [18, 82], [28, 92], [42, 86]], closed: true },
+    { points: [[45, 53], [45, 97]] },
   ],
   b: [
     { points: [[18, 15], [18, 100]] },
@@ -28,9 +33,12 @@ const GLYPHS: Record<string, GlyphStroke[]> = {
     { points: [[42, 15], [42, 100]] },
     { points: [[42, 58], [28, 52], [18, 62], [18, 82], [28, 92], [42, 86]], closed: true },
   ],
+  // Same open bowl as "c" (proven legible) with a crossbar through the middle — the
+  // earlier version used a narrower, more symmetric bowl that read as a Greek epsilon,
+  // not a Latin "e".
   e: [
-    { points: [[46, 45], [26, 42], [20, 58], [20, 78], [26, 90], [46, 88]] },
-    { points: [[20, 64], [42, 62]] },
+    { points: [[48, 48], [28, 42], [18, 58], [18, 80], [28, 93], [48, 88]] },
+    { points: [[18, 65], [44, 65]] },
   ],
   f: [
     { points: [[30, 20], [26, 100]] },

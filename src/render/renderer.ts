@@ -2,12 +2,14 @@ import rough from "roughjs";
 import gsap from "gsap";
 import { EasePack, RoughEase } from "gsap/EasePack";
 import { MorphSVGPlugin } from "gsap/MorphSVGPlugin";
-import type { Renderable, SerializedFilm, SerializedNode, SerializedScene } from "../core/types.js";
+import { MotionPathPlugin } from "gsap/MotionPathPlugin";
+import type { CameraOp, Renderable, SerializedFilm, SerializedNode, SerializedScene } from "../core/types.js";
 import { bboxOfPoints, pathFromPoints, unionBBox, type BBox } from "../core/geometry.js";
+import { rotatePoint, project, faceNormal, normalize, subtract, dot, shadeHex, type Vec3 } from "../core/geometry3d.js";
 import type { Point } from "../core/types.js";
 import { roughOptionsFor, strokeWidthOf } from "./style.js";
 
-gsap.registerPlugin(EasePack, MorphSVGPlugin);
+gsap.registerPlugin(EasePack, MorphSVGPlugin, MotionPathPlugin);
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 // A hand doesn't move at constant velocity — it's uneven, hesitates, quickens on straights.
@@ -58,9 +60,13 @@ export function mountRenderable(renderable: Renderable, container: HTMLElement):
 
 export function mount(scene: SerializedScene, container: HTMLElement): MountResult {
   const svg = document.createElementNS(SVG_NS, "svg");
-  svg.setAttribute("width", String(scene.width));
-  svg.setAttribute("height", String(scene.height));
-  svg.setAttribute("viewBox", `0 0 ${scene.width} ${scene.height}`);
+  // The output frame — the whole world (scene.width/height) unless a smaller viewport
+  // was set for the camera to pan/zoom within. buildSceneInto still sizes the background
+  // and positions content against scene.width/height (the world); only the visible frame
+  // changes here.
+  svg.setAttribute("width", String(scene.viewportWidth));
+  svg.setAttribute("height", String(scene.viewportHeight));
+  svg.setAttribute("viewBox", `0 0 ${scene.viewportWidth} ${scene.viewportHeight}`);
 
   const defs = document.createElementNS(SVG_NS, "defs");
   svg.appendChild(defs);
@@ -72,7 +78,7 @@ export function mount(scene: SerializedScene, container: HTMLElement): MountResu
   const tl = gsap.timeline({ paused: true });
   const boilTargets: BoilTarget[] = [];
 
-  buildSceneInto(scene, svg, rc, tl, boilTargets);
+  const postSeek = buildSceneInto(scene, svg, rc, tl, boilTargets);
 
   return {
     svg,
@@ -83,6 +89,10 @@ export function mount(scene: SerializedScene, container: HTMLElement): MountResu
     seekTo: (t: number) => {
       tl.seek(t, false);
       applyBoilAt(boilTargets, t);
+      // Runs strictly after the seek has fully resolved every other tween — see
+      // postSeek's own comment for why camera.follow can't safely read a moving
+      // target's live position from inside the same seek pass.
+      postSeek(t);
     },
     totalDuration: () => tl.duration(),
   };
@@ -117,6 +127,7 @@ export function mountFilm(film: SerializedFilm, container: HTMLElement): MountRe
   const rc = rough.svg(svg);
   const masterTl = gsap.timeline({ paused: true });
   const allBoilTargets: BoilTarget[] = [];
+  const scenePostSeeks: Array<{ postSeek: (t: number) => void; enterAt: number }> = [];
 
   let cursor = 0;
   let prevWrapper: SVGGElement | null = null;
@@ -139,7 +150,7 @@ export function mountFilm(film: SerializedFilm, container: HTMLElement): MountRe
     // film seek-driven rather than auto-playing.
     const sceneTl = gsap.timeline();
     const sceneBoilTargets: BoilTarget[] = [];
-    buildSceneInto(scene, wrapper, rc, sceneTl, sceneBoilTargets);
+    const scenePostSeek = buildSceneInto(scene, wrapper, rc, sceneTl, sceneBoilTargets);
     allBoilTargets.push(...sceneBoilTargets);
 
     const contentDuration = sceneTl.duration();
@@ -150,6 +161,7 @@ export function mountFilm(film: SerializedFilm, container: HTMLElement): MountRe
     // overlap and genuinely crossfade rather than each animating opacity in isolation.
     const enterAt = Math.max(0, cursor - fadeDur);
     masterTl.add(sceneTl, enterAt);
+    scenePostSeeks.push({ postSeek: scenePostSeek, enterAt });
 
     if (isFade) {
       masterTl.fromTo(wrapper, { opacity: 0 }, { opacity: 1, duration: fadeDur, ease: "sine.inOut" }, enterAt);
@@ -172,10 +184,21 @@ export function mountFilm(film: SerializedFilm, container: HTMLElement): MountRe
     seekTo: (t: number) => {
       masterTl.seek(t, false);
       applyBoilAt(allBoilTargets, t);
+      // Each scene's camera.follow reads happen after the FULL master seek resolves,
+      // in the scene's own local time (its camera ops' `at` values are scene-relative,
+      // not film-relative).
+      for (const { postSeek, enterAt } of scenePostSeeks) postSeek(t - enterAt);
     },
     totalDuration: () => masterTl.duration(),
   };
 }
+
+// The world's backdrop sits at the farthest-back depth by convention — an "infinitely
+// distant" plane that barely pans with the camera (see applyCameraLayers' parallax math),
+// distinct from depth 1 (the default plane everything else without an explicit
+// scene.layer() lives on).
+const BACKDROP_DEPTH = 0;
+const DEFAULT_LAYER_DEPTH = 1;
 
 function buildSceneInto(
   scene: SerializedScene,
@@ -183,16 +206,172 @@ function buildSceneInto(
   rc: ReturnType<typeof rough.svg>,
   tl: gsap.core.Timeline,
   boilTargets: BoilTarget[]
-): void {
+): (t: number) => void {
+  // Every depth in use gets its own group, appended in ascending depth order so farther
+  // (smaller-depth) layers land behind nearer ones in the SVG paint order. A scene that
+  // never calls scene.layer() ends up with exactly two groups (backdrop + the depth-1
+  // default plane) — the same structure as before this existed, just named.
+  const depths = new Set<number>([BACKDROP_DEPTH, DEFAULT_LAYER_DEPTH]);
+  for (const node of scene.children) {
+    depths.add(node.type === "group" && node.depth !== undefined ? node.depth : DEFAULT_LAYER_DEPTH);
+  }
+  const layerGroups = new Map<number, SVGGElement>();
+  for (const depth of Array.from(depths).sort((a, b) => a - b)) {
+    const g = document.createElementNS(SVG_NS, "g");
+    container.appendChild(g);
+    layerGroups.set(depth, g);
+  }
+
+  applyBackground(scene, layerGroups.get(BACKDROP_DEPTH)!);
+
+  for (const node of scene.children) {
+    const depth = node.type === "group" && node.depth !== undefined ? node.depth : DEFAULT_LAYER_DEPTH;
+    buildNode(node, layerGroups.get(depth)!, rc, tl, scene.seed, boilTargets);
+  }
+
+  return applyCameraLayers(layerGroups, scene, tl, container);
+}
+
+/** A flat color renders exactly as before (a plain rect). A gradient spec renders as one
+ * real SVG linearGradient — smooth, cheap, and clean, where a hand-authored sky previously
+ * needed dozens of individually-sketched band rectangles to fake the same effect (and still
+ * showed visible banding). A backdrop is painted, not pen-traced, so this deliberately
+ * bypasses rough.js. */
+function applyBackground(scene: SerializedScene, layer: SVGGElement): void {
   const bg = document.createElementNS(SVG_NS, "rect");
   bg.setAttribute("width", String(scene.width));
   bg.setAttribute("height", String(scene.height));
-  bg.setAttribute("fill", scene.background);
-  container.appendChild(bg);
 
-  for (const node of scene.children) {
-    buildNode(node, container, rc, tl, scene.seed, boilTargets);
+  if (typeof scene.background === "string") {
+    bg.setAttribute("fill", scene.background);
+  } else {
+    const defs = layer.ownerSVGElement?.querySelector("defs");
+    const gradId = `sk-bg-grad-${maskIdCounter++}`;
+    const grad = document.createElementNS(SVG_NS, "linearGradient");
+    grad.setAttribute("id", gradId);
+    grad.setAttribute("gradientUnits", "userSpaceOnUse");
+    if (scene.background.direction === "horizontal") {
+      grad.setAttribute("x1", "0");
+      grad.setAttribute("y1", "0");
+      grad.setAttribute("x2", String(scene.width));
+      grad.setAttribute("y2", "0");
+    } else {
+      grad.setAttribute("x1", "0");
+      grad.setAttribute("y1", "0");
+      grad.setAttribute("x2", "0");
+      grad.setAttribute("y2", String(scene.height));
+    }
+    for (const stop of scene.background.stops) {
+      const s = document.createElementNS(SVG_NS, "stop");
+      s.setAttribute("offset", `${stop.offset * 100}%`);
+      s.setAttribute("stop-color", stop.color);
+      grad.appendChild(s);
+    }
+    defs?.appendChild(grad);
+    bg.setAttribute("fill", `url(#${gradId})`);
   }
+
+  layer.appendChild(bg);
+}
+
+function findSerializedNodeById(nodes: SerializedNode[], id: string): SerializedNode | null {
+  for (const n of nodes) {
+    if (n.id === id) return n;
+    if (n.children) {
+      const found = findSerializedNodeById(n.children, id);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+/**
+ * Drives every depth layer's transform from ONE shared {cx, cy, zoom} state — scene-space
+ * point (cx, cy) is what's centered in the viewport, at `zoom`x, for the depth-1 default
+ * plane. Every other layer gets the same pan scaled by its own depth around the world's
+ * center (worldCx + (cx - worldCx) * depth): depth 1 reproduces the plain single-layer
+ * formula exactly (backward compatible), depth < 1 moves less than the camera (recedes —
+ * distant), depth > 1 moves more (pops forward — near). Zoom applies uniformly to every
+ * layer; only pan gets the parallax treatment.
+ *
+ * `panTo`/`zoomTo` tween camState directly inside the timeline (`onUpdate: apply` on each
+ * tick is safe — they only depend on elapsed time, nothing they need to read from another
+ * tween). `follow` is different: it needs the target's *live* x/y, and reading that via
+ * `gsap.getProperty()` from *inside* the same `tl.seek()` pass that's also mid-flight
+ * resolving the target's own chain of position tweens is unreliable — confirmed via a
+ * minimal repro (a box with 2+ sequential moveTo/moveBy calls plus a follow) where the
+ * read came back stale or wildly wrong, compounding worse the more prior tweens the target
+ * had. A single one-shot tween on the target didn't show it; any target with a genuine
+ * multi-step path (a walk cycle, any real character rig) reliably did. The returned
+ * `postSeek(t)` callback is the fix: it's called by the caller (mount/mountFilm's seekTo)
+ * strictly *after* `tl.seek()` has fully returned, so every other tween — including
+ * whatever chain the followed node has — has already settled for this tick before the
+ * read happens.
+ */
+function applyCameraLayers(
+  layerGroups: Map<number, SVGGElement>,
+  scene: SerializedScene,
+  tl: gsap.core.Timeline,
+  container: SVGElement
+): (t: number) => void {
+  const camOps = scene.camera;
+  if (!camOps || camOps.length === 0) return () => {};
+
+  const worldCx = scene.width / 2;
+  const worldCy = scene.height / 2;
+  const camState = { cx: worldCx, cy: worldCy, zoom: 1 };
+  const apply = () => {
+    const { cx, cy, zoom } = camState;
+    for (const [depth, g] of layerGroups) {
+      const layerCx = worldCx + (cx - worldCx) * depth;
+      const layerCy = worldCy + (cy - worldCy) * depth;
+      // Centers world-space (layerCx, layerCy) in the VIEWPORT (the output frame), not
+      // the world — those differ whenever scene.camera() is actually doing something.
+      const tx = scene.viewportWidth / 2 - layerCx * zoom;
+      const ty = scene.viewportHeight / 2 - layerCy * zoom;
+      g.setAttribute("transform", `translate(${tx} ${ty}) scale(${zoom})`);
+    }
+  };
+  apply();
+
+  interface FollowWindow {
+    start: number;
+    end: number;
+    targetG: SVGGElement | null;
+    anchorX: number;
+    anchorY: number;
+  }
+  const followWindows: FollowWindow[] = [];
+
+  for (const op of camOps) {
+    const at = op.at ?? 0;
+    const duration = op.duration ?? 1;
+
+    if (op.kind === "panTo") {
+      tl.to(camState, { cx: op.x, cy: op.y, duration, ease: op.ease ?? "sine.inOut", onUpdate: apply }, at);
+    } else if (op.kind === "zoomTo") {
+      tl.to(camState, { zoom: op.scale, duration, ease: op.ease ?? "sine.inOut", onUpdate: apply }, at);
+    } else {
+      const targetNode = findSerializedNodeById(scene.children, op.nodeId);
+      const bbox = targetNode ? computeNodeBBox(targetNode) : null;
+      const anchorX = bbox ? (bbox.minX + bbox.maxX) / 2 : camState.cx;
+      const anchorY = bbox ? (bbox.minY + bbox.maxY) / 2 : camState.cy;
+      // data-id is unique scene-wide, so searching the whole container (not just one
+      // layer's group) finds the target regardless of which depth plane it lives on.
+      const targetG = container.querySelector(`[data-id="${op.nodeId}"]`) as SVGGElement | null;
+      followWindows.push({ start: at, end: at + duration, targetG, anchorX, anchorY });
+    }
+  }
+
+  return (t: number) => {
+    const active = followWindows.find((w) => t >= w.start && t <= w.end);
+    if (!active) return;
+    const gx = active.targetG ? (gsap.getProperty(active.targetG, "x") as number) : 0;
+    const gy = active.targetG ? (gsap.getProperty(active.targetG, "y") as number) : 0;
+    camState.cx = active.anchorX + (gx || 0);
+    camState.cy = active.anchorY + (gy || 0);
+    apply();
+  };
 }
 
 function applyBoilAt(boilTargets: BoilTarget[], t: number): void {
@@ -218,6 +397,16 @@ function buildNode(
   g.setAttribute("data-id", node.id);
   applyInitialTransform(g, node);
   parent.appendChild(g);
+
+  if (node.type === "mesh3d") {
+    buildMesh3D(node, g, rc, tl, sceneSeed);
+    // Still runs moveTo/moveBy/rotateTo/scaleTo/fadeTo/squashTo — those animate `g`'s own
+    // flat transform exactly like any other node; only spin3d (handled above, inside
+    // buildMesh3D) is mesh-specific. applyAnimations' switch no-ops on "spin3d" so it's
+    // safe to iterate the same animations array a second time here.
+    applyAnimations(g, node, tl, null, 0, false, null, rc, sceneSeed);
+    return; // mesh3d has no 2D points/children of its own kind — nothing else below applies
+  }
 
   let cleanPathD: string | null = null;
   let strokeWidthPx = 3;
@@ -266,6 +455,118 @@ function buildNode(
   }
 
   applyAnimations(g, node, tl, cleanPathD, strokeWidthPx, closed, points, rc, sceneSeed);
+}
+
+/**
+ * Builds a mesh3d node's live re-sketching: unlike every other node (authored once, then
+ * only its flat 2D transform animates), a rotating solid's on-screen SILHOUETTE changes
+ * every frame — the projected 2D outline of each face, and which faces are even visible,
+ * both depend on the current rotation. So this can't precompute paths once at build time
+ * the way applyDrawOn's `cleanPathD` does; it registers an `onUpdate` on the mesh's own
+ * spin3d tween (or renders the static pose once, if the mesh never spins) that clears and
+ * redraws every face's rough.js path on each tick, in painter's-algorithm order (back to
+ * front by average projected depth) so nearer faces correctly occlude farther ones.
+ *
+ * Faces whose outward normal points away from the camera (dot(normal, viewDir) >= 0, since
+ * the camera looks down +z per project()'s convention) are skipped entirely — backface
+ * culling, needed both for correctness (a solid's far faces shouldn't render as if
+ * transparent) and so painter's-algorithm sorting never has to reconcile a front and back
+ * face at roughly the same depth.
+ */
+function buildMesh3D(
+  node: SerializedNode,
+  g: SVGGElement,
+  rc: ReturnType<typeof rough.svg>,
+  tl: gsap.core.Timeline,
+  sceneSeed: number
+): void {
+  const vertices = node.mesh3dVertices ?? [];
+  const faces = node.mesh3dFaces ?? [];
+  const focalLength = node.mesh3dFocalLength ?? 480;
+  const lightDirRaw = node.mesh3dLightDir ?? [-0.5, -0.7, -0.4];
+  const lightDir = normalize({ x: lightDirRaw[0], y: lightDirRaw[1], z: lightDirRaw[2] });
+  const baseSeed = sceneSeed ^ node.seed;
+  const baseColor = node.style?.fill?.color ?? node.style?.color ?? "#8a8a8a";
+  const strokeColor = node.style?.color ?? "#181511";
+  const strokeWidthPx = strokeWidthOf(node.style?.weight);
+
+  const meshGroup = document.createElementNS(SVG_NS, "g");
+  g.appendChild(meshGroup);
+
+  const rotState = { rx: 0, ry: 0, rz: 0 };
+
+  const redraw = () => {
+    while (meshGroup.firstChild) meshGroup.removeChild(meshGroup.firstChild);
+
+    const rxr = (rotState.rx * Math.PI) / 180;
+    const ryr = (rotState.ry * Math.PI) / 180;
+    const rzr = (rotState.rz * Math.PI) / 180;
+
+    const rotated: Vec3[] = vertices.map(([x, y, z]) => rotatePoint(x, y, z, rxr, ryr, rzr));
+
+    interface Renderable3 {
+      d: string;
+      color: string;
+      avgZ: number;
+    }
+    const renderables: Renderable3[] = [];
+
+    for (let fi = 0; fi < faces.length; fi++) {
+      const face = faces[fi];
+      const faceVerts = face.indices.map((i) => rotated[i]);
+      if (faceVerts.length < 3) continue;
+
+      const normal = faceNormal(faceVerts);
+      // Camera looks down +z (see project()) from the -z side, so the view direction from
+      // any point on the face toward the camera is roughly -z; a face whose normal has a
+      // non-negative z component faces away and is skipped (backface cull).
+      if (normal.z >= 0) continue;
+
+      const projected = faceVerts.map((v) => project(v, focalLength));
+      const points2d: Point[] = projected.map((p) => [p.x, p.y]);
+      const d = pathFromPoints(points2d, true, false);
+
+      const avgZ = faceVerts.reduce((s, v) => s + v.z, 0) / faceVerts.length;
+
+      // Flat shading: how directly the face's normal opposes the light direction. A face
+      // normal pointing straight at the light (dot = -1) is brightest; away (dot = 1) is
+      // darkest. Clamped to a visible range so no face goes fully black/white.
+      const lightAmount = -dot(normal, lightDir); // -1..1
+      const shadeAmount = Math.max(-0.55, Math.min(0.45, lightAmount * 0.5));
+      const color = face.color ? shadeHex(face.color, shadeAmount) : shadeHex(baseColor, shadeAmount);
+
+      renderables.push({ d, color, avgZ });
+    }
+
+    // Painter's algorithm: farther faces (larger avgZ, since the camera sits on -z) paint
+    // first, nearer faces paint over them.
+    renderables.sort((a, b) => b.avgZ - a.avgZ);
+
+    for (let i = 0; i < renderables.length; i++) {
+      const r = renderables[i];
+      const opts = roughOptionsFor(
+        { color: strokeColor, weight: node.style?.weight, looseness: node.style?.looseness, energy: node.style?.energy },
+        baseSeed + i * 7919,
+        true
+      );
+      opts.fill = r.color;
+      opts.fillStyle = "solid";
+      const rendered = rc.path(r.d, opts);
+      meshGroup.appendChild(rendered);
+    }
+  };
+
+  redraw();
+
+  // Every spin3d call gets its own tween on the SAME shared rotState — chaining several
+  // (spin to A, then from wherever that lands, spin on to B) works the same way chained
+  // moveBy/rotateTo calls do on any other node.
+  for (const op of node.animations) {
+    if (op.kind !== "spin3d") continue;
+    const at = op.at ?? 0;
+    const duration = op.duration ?? 1;
+    tl.to(rotState, { rx: op.rx, ry: op.ry, rz: op.rz, duration, ease: op.ease ?? "sine.inOut", onUpdate: redraw }, at);
+  }
 }
 
 function applyInitialTransform(g: SVGGElement, node: SerializedNode): void {
@@ -356,6 +657,33 @@ function applyAnimations(
       case "morphTo":
         applyMorphTo(g, tl, at, op.duration ?? 0.8, op.ease ?? "power2.inOut", op.points, node, rc, sceneSeed);
         break;
+      case "squashTo":
+        tl.to(
+          g,
+          { scaleX: op.scaleX, scaleY: op.scaleY, duration: op.duration ?? 0.3, ease: op.ease ?? "power2.out" },
+          at
+        );
+        break;
+      case "moveAlong": {
+        // op.points are authored in absolute canvas coordinates like every other point
+        // in this library — MotionPathPlugin animates the same x/y transform moveTo
+        // does, which is an *offset* from the node's own authored position, not an
+        // absolute one. Re-anchor each point the same way moveTo re-anchors its target.
+        const bbox = computeNodeBBox(node);
+        const refX = bbox ? (bbox.minX + bbox.maxX) / 2 : 0;
+        const refY = bbox ? (bbox.minY + bbox.maxY) / 2 : 0;
+        const path = op.points.map(([x, y]) => ({ x: x - refX, y: y - refY }));
+        tl.to(
+          g,
+          {
+            motionPath: { path, autoRotate: !!op.rotate, curviness: 1.25 },
+            duration: op.duration ?? 1.2,
+            ease: op.ease ?? "power1.inOut",
+          },
+          at
+        );
+        break;
+      }
     }
   }
 }
@@ -455,16 +783,19 @@ function applyDrawOn(
   const mask = document.createElementNS(SVG_NS, "mask");
   mask.setAttribute("id", maskId);
   mask.setAttribute("maskUnits", "userSpaceOnUse");
-  mask.setAttribute("x", "-2000");
-  mask.setAttribute("y", "-2000");
-  mask.setAttribute("width", "5000");
-  mask.setAttribute("height", "5000");
+  // Generous enough to cover a wide one-continuous-scene world (a camera pans across a
+  // canvas much bigger than one screen's worth), not just a single ~640px diorama.
+  mask.setAttribute("x", "-6000");
+  mask.setAttribute("y", "-6000");
+  mask.setAttribute("width", "15000");
+  mask.setAttribute("height", "15000");
 
+  const traceStrokeWidth = strokeWidthPx * 3 + 10;
   const trace = document.createElementNS(SVG_NS, "path");
   trace.setAttribute("d", cleanPathD);
   trace.setAttribute("fill", "none");
   trace.setAttribute("stroke", "#fff");
-  trace.setAttribute("stroke-width", String(strokeWidthPx * 3 + 10));
+  trace.setAttribute("stroke-width", String(traceStrokeWidth));
   trace.setAttribute("stroke-linecap", "round");
   trace.setAttribute("stroke-linejoin", "round");
   mask.appendChild(trace);
@@ -500,8 +831,10 @@ function applyDrawOn(
     mask.appendChild(scribbleWrap);
 
     scribbleLen = scribble.getTotalLength();
-    scribble.style.strokeDasharray = `${scribbleLen}`;
-    scribble.style.strokeDashoffset = `${scribbleLen}`;
+    // Same rounding-margin reasoning as the trace pad below.
+    const scribblePad = rowSpacing * 1.7 / 2 + 2;
+    scribble.style.strokeDasharray = `${scribbleLen + scribblePad}`;
+    scribble.style.strokeDashoffset = `${scribbleLen + scribblePad}`;
   }
 
   defs.appendChild(mask);
@@ -510,8 +843,16 @@ function applyDrawOn(
   const len = trace.getTotalLength();
   const duration =
     requestedDuration ?? Math.min(MAX_DRAW_DURATION, Math.max(MIN_DRAW_DURATION, len / PEN_SPEED_PX_PER_S));
-  trace.style.strokeDasharray = `${len}`;
-  trace.style.strokeDashoffset = `${len}`;
+  // getTotalLength() is a JS-measured arc length that can disagree by a few px from the
+  // browser's own paint-time length for a sketchy, many-segment rough.js curve — with
+  // dasharray/dashoffset sized to exactly `len`, that mismatch let a sliver of the round
+  // line-cap render even while "fully hidden" (verified: a text scene showed a stray
+  // fragment of a not-yet-drawn letter minutes before its drawOn). Padding both by half
+  // the trace's own stroke width absorbs the discrepancy; the reveal still ends at
+  // dashoffset 0, so the drawn-on look is unaffected.
+  const tracePad = traceStrokeWidth / 2 + 2;
+  trace.style.strokeDasharray = `${len + tracePad}`;
+  trace.style.strokeDashoffset = `${len + tracePad}`;
 
   const tipColor = artGroup.querySelector("path[stroke]")?.getAttribute("stroke") || "#111";
   // Sized to clearly poke past the line's own width — at parity with the stroke it just

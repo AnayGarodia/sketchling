@@ -5,7 +5,7 @@ let autoId = 0;
 
 export abstract class SketchNode {
   readonly id: string;
-  abstract readonly type: "stroke" | "blob" | "group";
+  abstract readonly type: "stroke" | "blob" | "group" | "mesh3d";
   style: NodeStyle;
   transform: Transform = { x: 0, y: 0, scale: 1, rotation: 0, opacity: 1 };
   animations: AnimOp[] = [];
@@ -68,6 +68,24 @@ export abstract class SketchNode {
 
   fadeTo(opacity: number, opts: TimingOpts = {}): this {
     this.animations.push({ kind: "fadeTo", opacity, ...opts });
+    return this;
+  }
+
+  /** Moves along a curved path through `points` instead of the straight line a chain of
+   * moveBy calls would draw — one tween, not several stitched-together linear segments.
+   * `rotate: true` orients the node to face the direction of travel (a bird banking into
+   * a turn), off by default (most shapes should stay upright while they travel). */
+  moveAlong(points: Point[], opts: TimingOpts & { rotate?: boolean } = {}): this {
+    const { rotate, ...timing } = opts;
+    this.animations.push({ kind: "moveAlong", points, rotate, ...timing });
+    return this;
+  }
+
+  /** Non-uniform scale — squash-and-stretch, the basic cartoon weight/impact cue (a body
+   * flattens wide on landing, stretches tall mid-jump). Independent scaleX/scaleY, unlike
+   * the uniform scaleTo(). */
+  squashTo(scaleX: number, scaleY: number, opts: TimingOpts = {}): this {
+    this.animations.push({ kind: "squashTo", scaleX, scaleY, ...opts });
     return this;
   }
 

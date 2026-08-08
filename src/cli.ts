@@ -65,7 +65,8 @@ async function runRender(sceneFile: string, opts: RenderOpts): Promise<void> {
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     const browser = await chromium.launch();
     try {
-      const page = await browser.newPage({ viewport: { width: serialized.width, height: serialized.height } });
+      const { width: outW, height: outH } = outputSize(serialized);
+      const page = await browser.newPage({ viewport: { width: outW, height: outH } });
       page.setDefaultTimeout(FRAME_TIMEOUT_MS);
       if (process.env.SKETCHLING_DEBUG) {
         page.on("console", (m) => console.error("[browser]", m.type(), m.text()));
@@ -141,6 +142,16 @@ function lintRenderable(renderable: Renderable): LintFinding[] {
   return renderable.entries.flatMap((entry, i) =>
     lintScene(entry.scene).map((f) => ({ ...f, message: `[scene ${i}] ${f.message}` }))
   );
+}
+
+// A Film's width/height is already the output frame (every scene gets letterboxed into
+// it). A Scene's width/height is its world — the output frame is viewportWidth/Height,
+// which equals width/height unless scene.camera() is panning/zooming within something
+// bigger than one screen.
+function outputSize(renderable: Renderable): { width: number; height: number } {
+  return renderable.kind === "film"
+    ? { width: renderable.width, height: renderable.height }
+    : { width: renderable.viewportWidth, height: renderable.viewportHeight };
 }
 
 async function buildHarness(serialized: Renderable, workdir: string): Promise<string> {

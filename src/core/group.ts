@@ -6,6 +6,8 @@ import { unionBBox, type BBox } from "./geometry.js";
 export class Group extends SketchNode {
   readonly type = "group" as const;
   children: SketchNode[];
+  // Parallax depth, set via scene.layer(depth) — see SerializedNode.depth for semantics.
+  depth?: number;
 
   constructor(children: SketchNode[] = [], style: NodeStyle = {}) {
     super(style);
