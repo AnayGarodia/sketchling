@@ -106,6 +106,7 @@ function serializeNode(node: SketchNode): SerializedNode {
   if (node instanceof Group) {
     return {
       id: node.id,
+      label: node.label,
       type: "group",
       style: node.style,
       transform: node.transform,
@@ -118,6 +119,7 @@ function serializeNode(node: SketchNode): SerializedNode {
   if (node instanceof Mesh3D) {
     return {
       id: node.id,
+      label: node.label,
       type: "mesh3d",
       style: node.style,
       transform: node.transform,
@@ -131,7 +133,7 @@ function serializeNode(node: SketchNode): SerializedNode {
   }
   if (node instanceof Limb) {
     return {
-      id: node.id, type: "limb", style: node.style, transform: node.transform,
+      id: node.id, label: node.label, type: "limb", style: node.style, transform: node.transform,
       animations: node.animations, seed: node.seed,
       limbRootX: node.rootX, limbRootY: node.rootY, limbLen1: node.len1, limbLen2: node.len2,
       limbBend: node.bend, limbCapRadius: node.capRadius, limbCapColor: node.capColor,
@@ -140,14 +142,14 @@ function serializeNode(node: SketchNode): SerializedNode {
   }
   if (node instanceof Connector) {
     return {
-      id: node.id, type: "connector", style: node.style, transform: node.transform,
+      id: node.id, label: node.label, type: "connector", style: node.style, transform: node.transform,
       animations: node.animations, seed: node.seed,
       connectorAnchorX: node.anchorX, connectorAnchorY: node.anchorY, connectorTargetId: node.targetId,
     };
   }
   if (node instanceof Particles) {
     return {
-      id: node.id, type: "particles", style: node.style, transform: node.transform,
+      id: node.id, label: node.label, type: "particles", style: node.style, transform: node.transform,
       animations: node.animations, seed: node.seed,
       particlesSpawnX: node.spawnX, particlesSpawnY: node.spawnY, particlesCount: node.count,
       particlesAngle: node.angle, particlesSpread: node.spread,
@@ -159,7 +161,7 @@ function serializeNode(node: SketchNode): SerializedNode {
   }
   if (node instanceof Sound) {
     return {
-      id: node.id, type: "sound", style: node.style, transform: node.transform,
+      id: node.id, label: node.label, type: "sound", style: node.style, transform: node.transform,
       animations: node.animations, seed: node.seed,
       soundPitch: node.pitch, soundAt: node.at, soundDuration: node.duration,
       soundInstrument: node.instrument, soundVelocity: node.velocity, soundPan: node.pan,
@@ -168,6 +170,7 @@ function serializeNode(node: SketchNode): SerializedNode {
   if (node instanceof Stroke) {
     return {
       id: node.id,
+      label: node.label,
       type: "stroke",
       points: node.points,
       closed: node.closed,

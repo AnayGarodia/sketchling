@@ -26,6 +26,23 @@ sketchling render scene.ts --video out.mp4 --fps 30      # the whole timeline, a
 sketchling render scene.ts --serve                       # open live in a real browser
 ```
 
+### Agent verification loop
+
+Before iterating on an unfamiliar scene, use the CLI as a tool contract instead of inferring
+state from prose or one settled frame:
+
+```sh
+sketchling validate scene.ts --json      # renderer capability and timing diagnostics
+sketchling inspect scene.ts              # node ids/names, bounds, animations, estimated end
+sketchling render scene.ts --out frame.png --json  # exact rendered duration + artifact path
+sketchling contact-sheet scene.ts --out review.png # six evenly spaced visual checkpoints
+```
+
+Name elements that an agent may need to repair: `scene.add(node.named("hero-rocket"))`.
+Diagnostics preserve that name, so a warning can be mapped back to source intent rather than
+an ephemeral `n42` id. Treat `validate` warnings as real capability boundaries: a 2D stroke
+inside a `"toon3d"` scene, for example, is intentionally reported before it disappears.
+
 Tier 0 lint (off-canvas, degenerate shapes, heavy overlap, off-center composition) runs on every render automatically, for free, before any pixel exists. Nested detail (eyes on a face, a keyhole on a screen) routinely trips the overlap warning — that's expected for intentional nesting, not a problem to fix.
 
 ## Primitives
@@ -135,7 +152,7 @@ sketch.walk({
 
 - `sketch.limb(rootX, rootY, len1, len2, style, {bend, capRadius, capColor})` is a 2-bone IK chain (a leg or arm): two segments whose joint (knee/elbow) angle is solved every frame from an end-effector target, instead of a hand-authored `rotateTo` per segment. `.ikTo(x, y, opts)` moves that target — absolute, in the same local coordinate space as `rootX/rootY` — and is chainable like any other animation call. `bend` (1 or -1) picks which of the two valid knee/elbow solutions; whichever reads correctly for the limb's own orientation, check with a render. `capRadius > 0` draws a foot/hand blob at the end.
 - **Give the chain real reach headroom.** `len1 + len2` should comfortably exceed the distance it actually needs to cover — a chain at or near full extension gets its target silently clamped onto the reachable radius the moment it's asked to reach slightly further, which distorts the effective foot position (and, in a walk cycle, breaks the planted-foot-doesn't-slide guarantee below). Some bend at rest reads as more natural anyway.
-- `sketch.walk({body, legs: [{limb, hipX}, {limb, hipX}], steps, stepLength, groundY, stepDuration?, liftHeight?, bodyBob?, at?})` generates a full bipedal gait — foot planting, lift-and-swing, body bob — over exactly two limbs, alternating which leads each step. Returns `{endAt}` so you can chain whatever comes after the walk without hand-computing the total duration. `body` is driven with `moveBy` (relative), so it composes with wherever the character already is.
+- `sketch.walk({body, legs: [{limb, hipX}, {limb, hipX}], steps, stepLength, groundY, stepDuration?, liftHeight?, bodyBob?, at?})` generates a full bipedal gait — foot planting, lift-and-swing, body bob — over exactly two limbs, alternating which leads each step. Returns `{endAt}` so you can chain whatever comes after the walk without hand-computing the total duration. `body` is driven with `moveBy` (relative), so it composes with wherever the character already is. `arms` (optional): `[{node, swingAngle?}, {node, swingAngle?}]`, a phase-locked contralateral counter-swing — `arms[0]` pairs with `legs[0]` as the SAME side and swings OPPOSITE that leg's own phase (right leg forward <-> left arm forward). `node` needs its own `.rotateTo` (a `Limb`, or a plain stroke/group) and MUST be `.pivotAt()`'d at the shoulder first — un-pivoted, it rotates around its own bbox center and visibly detaches. See `examples/gallery/walk-cycle-arms.ts`.
 - The planted (trailing) leg's foot is provably fixed in world space for the whole time it's grounded, not just close at the keyframes — it works by giving that foot's `ikTo` for each half-step the *exact same* `{at, duration, ease}` as the body's own `moveBy` for that half-step, with the negated delta, so both tweens trace the identical ease curve and cancel at every sampled instant. Trust this rather than re-deriving your own countershift math for a custom gait.
 
 ```ts

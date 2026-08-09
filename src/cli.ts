@@ -8,6 +8,7 @@ import path from "node:path";
 import { pathToFileURL, fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
 import { lintScene, type LintFinding } from "./lint/lint.js";
+import { inspectRenderable, validateRenderable } from "./core/agent.js";
 import type { Renderable } from "./core/types.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -27,8 +28,43 @@ program
   .option("--fps <n>", "frames per second for --video", "24")
   .option("--serve", "serve the animation live in a browser instead of capturing a still", false)
   .option("--quiet-lint", "suppress Tier 0 lint findings", false)
+  .option("--json", "emit one machine-readable render report", false)
   .action(async (sceneFile: string, opts) => {
     await runRender(sceneFile, opts);
+  });
+
+program
+  .command("inspect <sceneFile>")
+  .description("emit a JSON scene manifest for agents and tooling")
+  .action(async (sceneFile: string) => {
+    const workdir = mkdtempSync(path.join(tmpdir(), "sketchling-inspect-"));
+    const serialized = await buildScene(path.resolve(process.cwd(), sceneFile), workdir);
+    console.log(JSON.stringify({ manifest: inspectRenderable(serialized), validation: validateRenderable(serialized), lint: lintRenderable(serialized) }, null, 2));
+  });
+
+program
+  .command("validate <sceneFile>")
+  .description("check renderer contracts and structural lint before rendering")
+  .option("--json", "emit machine-readable findings", false)
+  .action(async (sceneFile: string, opts: { json: boolean }) => {
+    const workdir = mkdtempSync(path.join(tmpdir(), "sketchling-validate-"));
+    const serialized = await buildScene(path.resolve(process.cwd(), sceneFile), workdir);
+    const validation = validateRenderable(serialized);
+    const lint = lintRenderable(serialized);
+    if (opts.json) console.log(JSON.stringify({ validation, lint }));
+    else {
+      printAgentFindings(validation);
+      printFindings(lint);
+    }
+    if (validation.some((finding) => finding.level === "error") || lint.some((finding) => finding.level === "error")) process.exitCode = 1;
+  });
+
+program
+  .command("contact-sheet <sceneFile>")
+  .description("render six evenly spaced frames into one agent-reviewable PNG")
+  .option("--out <path>", "output PNG path", "contact-sheet.png")
+  .action(async (sceneFile: string, opts: { out: string }) => {
+    await runContactSheet(sceneFile, opts.out);
   });
 
 program.parseAsync(process.argv);
@@ -41,24 +77,42 @@ interface RenderOpts {
   fps: string;
   serve: boolean;
   quietLint: boolean;
+  json: boolean;
+}
+
+interface RenderReport {
+  artifact: string;
+  at?: number;
+  duration: number;
+  output: { width: number; height: number };
+  lint: LintFinding[];
+  validation: ReturnType<typeof validateRenderable>;
 }
 
 const FRAME_TIMEOUT_MS = 8_000;
 const MAX_ATTEMPTS = 4;
 
-async function runRender(sceneFile: string, opts: RenderOpts): Promise<void> {
+async function runRender(sceneFile: string, opts: RenderOpts): Promise<RenderReport> {
   const absScene = path.resolve(process.cwd(), sceneFile);
   const workdir = mkdtempSync(path.join(tmpdir(), "sketchling-"));
 
   const serialized = await buildScene(absScene, workdir);
-  if (!opts.quietLint) printFindings(lintRenderable(serialized));
+  const lint = lintRenderable(serialized);
+  const validation = validateRenderable(serialized);
+  if (!opts.quietLint && !opts.json) {
+    printAgentFindings(validation);
+    printFindings(lint);
+  }
+  if (validation.some((finding) => finding.level === "error")) {
+    throw new Error("Scene validation failed. Run `sketchling validate <sceneFile> --json` for structured diagnostics.");
+  }
 
   const htmlPath = await buildHarness(serialized, workdir);
 
   if (opts.serve) {
     console.log(`Scene HTML: ${htmlPath}`);
     console.log("Open it in a real browser to see it live (this file is self-contained).");
-    return;
+    return { artifact: htmlPath, duration: Math.max(...inspectRenderable(serialized).scenes.map((scene) => scene.estimatedEnd), 0), output: outputSize(serialized), lint, validation };
   }
 
   let lastErr: unknown;
@@ -79,27 +133,33 @@ async function runRender(sceneFile: string, opts: RenderOpts): Promise<void> {
         "ready check"
       );
       const cdp = await page.context().newCDPSession(page);
+      const totalDuration: number = await withTimeout(
+        page.evaluate(() => (window as any).__sketchling.totalDuration()),
+        FRAME_TIMEOUT_MS,
+        "read duration"
+      );
 
       const pixelPost = serialized.kind === "scene" && serialized.texture === "pixel" ? pixelateBuffer : undefined;
 
       if (opts.video) {
-        await renderVideo(page, cdp, opts.video, Number(opts.fps), workdir, pixelPost);
+        await renderVideo(page, cdp, opts.video, Number(opts.fps), workdir, pixelPost, opts.json);
+        const report: RenderReport = { artifact: path.resolve(process.cwd(), opts.video), duration: totalDuration, output: outputSize(serialized), lint, validation };
+        if (opts.json) console.log(JSON.stringify(report));
+        await browser.close();
+        return report;
       } else {
-        const totalDuration: number = await withTimeout(
-          page.evaluate(() => (window as any).__sketchling.totalDuration()),
-          FRAME_TIMEOUT_MS,
-          "read duration"
-        );
         const at = opts.at !== undefined ? Number(opts.at) : totalDuration;
         await withTimeout(
           captureFrame(page, cdp, at, path.resolve(process.cwd(), opts.out), opts.crop, pixelPost),
           FRAME_TIMEOUT_MS,
           "capture frame"
         );
-        console.log(`Rendered ${sceneFile} at t=${at.toFixed(2)}s -> ${opts.out}`);
+        const report: RenderReport = { artifact: path.resolve(process.cwd(), opts.out), at, duration: totalDuration, output: outputSize(serialized), lint, validation };
+        if (opts.json) console.log(JSON.stringify(report));
+        else console.log(`Rendered ${sceneFile} at t=${at.toFixed(2)}s -> ${opts.out}`);
+        await browser.close();
+        return report;
       }
-      await browser.close();
-      return;
     } catch (err) {
       lastErr = err;
       // A stuck CDP evaluate can wedge the whole browser session (a known local
@@ -112,6 +172,19 @@ async function runRender(sceneFile: string, opts: RenderOpts): Promise<void> {
     }
   }
   throw lastErr;
+}
+
+async function runContactSheet(sceneFile: string, out: string): Promise<void> {
+  const framesDir = mkdtempSync(path.join(tmpdir(), "sketchling-contact-sheet-"));
+  const first = await runRender(sceneFile, { out: path.join(framesDir, "frame-00.png"), crop: false, fps: "24", serve: false, quietLint: true, json: false, at: "0" });
+  const sampleCount = 6;
+  for (let i = 1; i < sampleCount; i++) {
+    const at = (first.duration * i) / (sampleCount - 1);
+    await runRender(sceneFile, { out: path.join(framesDir, `frame-0${i}.png`), crop: false, fps: "24", serve: false, quietLint: true, json: false, at: String(at) });
+  }
+  const resolvedOut = path.resolve(process.cwd(), out);
+  await runFfmpeg(["-y", "-framerate", "1", "-i", path.join(framesDir, "frame-%02d.png"), "-vf", "tile=3x2:padding=4:color=white", "-frames:v", "1", resolvedOut]);
+  console.log(`Rendered contact sheet -> ${resolvedOut}`);
 }
 
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
@@ -259,7 +332,8 @@ async function renderVideo(
   outPath: string,
   fps: number,
   workdir: string,
-  postProcess?: FramePostProcess
+  postProcess?: FramePostProcess,
+  quiet = false
 ): Promise<void> {
   const totalDuration: number = await page.evaluate(() => (window as any).__sketchling.totalDuration());
   const framesDir = path.join(workdir, "frames");
@@ -273,7 +347,7 @@ async function renderVideo(
     const t = Math.min(i / fps, heldDuration);
     const framePath = path.join(framesDir, `frame-${String(i).padStart(6, "0")}.png`);
     await withTimeout(captureFrame(page, cdp, t, framePath, false, postProcess), FRAME_TIMEOUT_MS, `capture frame ${i}`);
-    if (i % 10 === 0 || i === frameCount - 1) console.log(`frame ${i + 1}/${frameCount}`);
+    if (!quiet && (i % 10 === 0 || i === frameCount - 1)) console.log(`frame ${i + 1}/${frameCount}`);
   }
 
   // Rendered for exactly the same heldDuration the video frames cover, so a muxed audio
@@ -297,7 +371,7 @@ async function renderVideo(
   if (audioPath) ffmpegArgs.push("-i", audioPath, "-c:a", "aac", "-shortest");
   ffmpegArgs.push("-pix_fmt", "yuv420p", resolvedOut);
   await runFfmpeg(ffmpegArgs);
-  console.log(
+  if (!quiet) console.log(
     `Rendered ${frameCount} frames (${totalDuration.toFixed(2)}s @ ${fps}fps)${audioPath ? " with audio" : ""} -> ${resolvedOut}`
   );
 }
@@ -322,5 +396,12 @@ function printFindings(findings: LintFinding[]): void {
   }
   for (const f of findings) {
     console.log(`lint [${f.level}]: ${f.message}`);
+  }
+}
+
+function printAgentFindings(findings: ReturnType<typeof validateRenderable>): void {
+  for (const finding of findings) {
+    const ref = finding.nodeLabel ? ` [${finding.nodeLabel}]` : "";
+    console.log(`validate [${finding.level}] ${finding.code}${ref}: ${finding.message}`);
   }
 }

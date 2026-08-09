@@ -244,9 +244,12 @@ function buildMeshObject(node: SerializedNode, toonGradientMap: THREE.DataTextur
  * object.rotation.x/y/z — Three.js's default Euler order is "XYZ", matching
  * geometry3d.ts's rotatePoint exactly, so a given spin3d call produces the same visual
  * orientation in both backends. */
-function driveNodeAnimations(obj: THREE.Object3D, node: SerializedNode, tl: gsap.core.Timeline, viewportHeight: number): void {
+function driveNodeAnimations(obj: THREE.Mesh, node: SerializedNode, tl: gsap.core.Timeline, viewportHeight: number): void {
   obj.position.set(node.transform.x, viewportHeight - node.transform.y, 0);
   obj.scale.set(node.transform.scale, node.transform.scale, node.transform.scale);
+  const opacity = { value: node.transform.opacity };
+  const applyOpacity = () => setObjectOpacity(obj, opacity.value);
+  applyOpacity();
 
   for (const op of node.animations) {
     const at = op.at ?? 0;
@@ -269,7 +272,12 @@ function driveNodeAnimations(obj: THREE.Object3D, node: SerializedNode, tl: gsap
         tl.to(obj.rotation, { z: -(op.degrees * Math.PI) / 180, duration: op.duration ?? 0.6, ease: op.ease ?? "power2.out" }, at);
         break;
       case "fadeTo":
-        tl.to(obj as unknown as { opacity: number }, { opacity: op.opacity, duration: op.duration ?? 0.6, ease: op.ease ?? "power2.out" }, at);
+        tl.to(opacity, { value: op.opacity, duration: op.duration ?? 0.6, ease: op.ease ?? "power2.out", onUpdate: applyOpacity }, at);
+        break;
+      case "appear":
+        opacity.value = 0;
+        applyOpacity();
+        tl.to(opacity, { value: 1, duration: op.duration ?? 0.6, ease: op.ease ?? "power2.out", onUpdate: applyOpacity }, at);
         break;
       case "spin3d":
         tl.to(
@@ -288,4 +296,16 @@ function driveNodeAnimations(obj: THREE.Object3D, node: SerializedNode, tl: gsap
         break; // drawOn, appear, morphTo, moveAlong: 2D-only, no 3D meaning here
     }
   }
+}
+
+function setObjectOpacity(object: THREE.Object3D, opacity: number): void {
+  object.traverse((child) => {
+    if (!(child instanceof THREE.Mesh)) return;
+    const materials = Array.isArray(child.material) ? child.material : [child.material];
+    for (const material of materials) {
+      material.transparent = opacity < 1;
+      material.opacity = opacity;
+      material.needsUpdate = true;
+    }
+  });
 }

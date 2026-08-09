@@ -95,6 +95,8 @@ export interface Mesh3DFaceData {
 
 export interface SerializedNode {
   id: string;
+  /** Optional author-chosen diagnostic handle, set with node.named("..."). */
+  label?: string;
   type: "stroke" | "blob" | "group" | "mesh3d" | "limb" | "connector" | "particles" | "sound";
   points?: Point[];
   closed?: boolean;

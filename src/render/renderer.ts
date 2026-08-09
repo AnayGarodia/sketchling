@@ -24,7 +24,10 @@ const HAND_DRAWN_EASE = RoughEase.config({
   points: 14,
   template: "power1.inOut",
   taper: "both",
-  randomize: true,
+  // Keep timing deterministic across render processes. Visual line variation is already
+  // seeded per node by rough.js; a Math.random()-backed ease breaks an agent's ability to
+  // reproduce or compare a frame from the same scene source.
+  randomize: false,
 });
 
 // A hand doesn't draw an arbitrary shape in an arbitrary duration — longer paths take
@@ -43,13 +46,6 @@ const BOIL_VARIANTS = 3;
 const BOIL_INTERVAL = 0.11;
 
 let maskIdCounter = 0;
-
-// The current scene's visual treatment, set once at the top of buildSceneInto — safe as a
-// module-level variable because a scene builds fully synchronously within one
-// buildSceneInto call (no interleaving with another scene's build, single vs. Film alike).
-// Read wherever roughOptionsFor is called and to gate look-specific behaviors (boil, the
-// drawOn pen tip) without threading a new parameter through every builder function.
-let currentLook: RenderLook = "ink";
 
 interface BoilTarget {
   variants: SVGGElement[];
@@ -424,7 +420,7 @@ function buildSceneInto(
   boilTargets: BoilTarget[],
   soundEvents: SoundEvent[]
 ): (t: number) => void {
-  currentLook = scene.look ?? "ink";
+  const look = scene.look ?? "ink";
 
   // Every depth in use gets its own group, appended in ascending depth order so farther
   // (smaller-depth) layers land behind nearer ones in the SVG paint order. A scene that
@@ -448,7 +444,7 @@ function buildSceneInto(
   const pendingParticles: PendingParticleEmitter[] = [];
   for (const node of scene.children) {
     const depth = node.type === "group" && node.depth !== undefined ? node.depth : DEFAULT_LAYER_DEPTH;
-    buildNode(node, layerGroups.get(depth)!, rc, tl, scene.seed, boilTargets, pendingSprings, pendingConnectors, pendingParticles, soundEvents);
+    buildNode(node, layerGroups.get(depth)!, rc, tl, scene.seed, look, boilTargets, pendingSprings, pendingConnectors, pendingParticles, soundEvents);
   }
 
   const springsPostSeek = buildSprings(pendingSprings, scene, tl, container);
@@ -456,10 +452,10 @@ function buildSceneInto(
   // drivers do — runs after springsPostSeek specifically so a connector tracking a
   // springTo'd node sees that spring's position already resolved for this frame, not last
   // frame's stale one.
-  const connectorsPostSeek = buildConnectors(pendingConnectors, scene, container, rc);
+  const connectorsPostSeek = buildConnectors(pendingConnectors, scene, container, rc, look);
   // Particles depend on no other node's state (pure function of t and each particle's own
   // fixed params), so ordering relative to the others doesn't matter.
-  const particlesPostSeek = buildParticles(pendingParticles, rc, tl);
+  const particlesPostSeek = buildParticles(pendingParticles, rc, tl, look);
   const cameraPostSeek = applyCameraLayers(layerGroups, scene, tl, container);
 
   // Same reservation particles needed for the same reason: a sketch.sound() is never
@@ -812,7 +808,8 @@ function buildConnectors(
   pendingConnectors: PendingConnector[],
   scene: SerializedScene,
   container: SVGElement,
-  rc: ReturnType<typeof rough.svg>
+  rc: ReturnType<typeof rough.svg>,
+  look: RenderLook
 ): (t: number) => void {
   if (pendingConnectors.length === 0) return () => {};
 
@@ -855,7 +852,7 @@ function buildConnectors(
         false,
         true
       );
-      const opts = roughOptionsFor(p.style, p.baseSeed, false, currentLook);
+      const opts = roughOptionsFor(p.style, p.baseSeed, false, look);
       p.artGroup.appendChild(rc.path(d, opts));
     }
   };
@@ -877,7 +874,8 @@ function buildConnectors(
 function buildParticles(
   pendingParticles: PendingParticleEmitter[],
   rc: ReturnType<typeof rough.svg>,
-  tl: gsap.core.Timeline
+  tl: gsap.core.Timeline,
+  look: RenderLook
 ): (t: number) => void {
   if (pendingParticles.length === 0) return () => {};
 
@@ -910,7 +908,7 @@ function buildParticles(
         if (opacity <= 0) continue;
 
         const fillColor = emitter.style.fill?.color ?? emitter.style.color ?? "#333";
-        const opts = roughOptionsFor(emitter.style, p.seed, true, currentLook);
+        const opts = roughOptionsFor(emitter.style, p.seed, true, look);
         opts.fill = fillColor;
         opts.fillStyle = "solid";
         const el = rc.circle(px, py, p.size * 2, opts);
@@ -927,6 +925,7 @@ function buildNode(
   rc: ReturnType<typeof rough.svg>,
   tl: gsap.core.Timeline,
   sceneSeed: number,
+  look: RenderLook,
   boilTargets: BoilTarget[],
   pendingSprings: PendingSpring[],
   pendingConnectors: PendingConnector[],
@@ -995,7 +994,7 @@ function buildNode(
     // Same reasoning as connector/mesh3d/limb: moveTo/moveBy/rotateTo/scaleTo/fadeTo/
     // squashTo still animate `g`'s own flat transform normally (moving the whole emitter);
     // the particles' own positions are computed separately, in buildParticles' postSeek.
-    applyAnimations(g, node, tl, null, 0, false, null, rc, sceneSeed);
+    applyAnimations(g, node, tl, null, 0, false, null, rc, sceneSeed, look);
     return;
   }
 
@@ -1013,26 +1012,26 @@ function buildNode(
     // Same reasoning as mesh3d/limb below: moveTo/moveBy/rotateTo/scaleTo/fadeTo/squashTo
     // still animate `g`'s own flat transform normally — the connector's actual path
     // geometry (anchor-to-target) is rebuilt separately, in buildConnectors' postSeek.
-    applyAnimations(g, node, tl, null, 0, false, null, rc, sceneSeed);
+    applyAnimations(g, node, tl, null, 0, false, null, rc, sceneSeed, look);
     return;
   }
 
   if (node.type === "mesh3d") {
-    buildMesh3D(node, g, rc, tl, sceneSeed);
+    buildMesh3D(node, g, rc, tl, sceneSeed, look);
     // Still runs moveTo/moveBy/rotateTo/scaleTo/fadeTo/squashTo — those animate `g`'s own
     // flat transform exactly like any other node; only spin3d (handled above, inside
     // buildMesh3D) is mesh-specific. applyAnimations' switch no-ops on "spin3d" so it's
     // safe to iterate the same animations array a second time here.
-    applyAnimations(g, node, tl, null, 0, false, null, rc, sceneSeed);
+    applyAnimations(g, node, tl, null, 0, false, null, rc, sceneSeed, look);
     return; // mesh3d has no 2D points/children of its own kind — nothing else below applies
   }
 
   if (node.type === "limb") {
-    buildLimb(node, g, rc, tl, sceneSeed);
+    buildLimb(node, g, rc, tl, sceneSeed, look);
     // Same reasoning as mesh3d above: moveTo/moveBy/rotateTo/scaleTo/fadeTo/squashTo still
     // animate `g`'s own flat transform (placing/orienting the whole chain); only ikTo
     // (handled inside buildLimb) is limb-specific, and applyAnimations no-ops on it.
-    applyAnimations(g, node, tl, null, 0, false, null, rc, sceneSeed);
+    applyAnimations(g, node, tl, null, 0, false, null, rc, sceneSeed, look);
     return;
   }
 
@@ -1053,7 +1052,7 @@ function buildNode(
     // a single static rendering too — extra boil variants of an identical path are wasted
     // DOM, not a visual difference.
     const hasMorph = node.animations.some((a) => a.kind === "morphTo");
-    const variantCount = hasMorph || currentLook !== "ink" ? 1 : BOIL_VARIANTS;
+    const variantCount = hasMorph || look !== "ink" ? 1 : BOIL_VARIANTS;
 
     // A gradient fill.color only renders as a real gradient when the effective fillStyle
     // is "solid" (hachure/cross-hatch/zigzag/dots are procedural line strokes with no
@@ -1065,7 +1064,7 @@ function buildNode(
       node.closed &&
       node.style?.fill &&
       typeof node.style.fill.color !== "string" &&
-      effectiveFillStyle(node.style, currentLook) === "solid"
+      effectiveFillStyle(node.style, look) === "solid"
     ) {
       const defs = g.ownerSVGElement?.querySelector("defs");
       const gradUrl = buildShapeGradient(defs, node.style.fill.color);
@@ -1079,7 +1078,7 @@ function buildNode(
     const artGroup = document.createElementNS(SVG_NS, "g");
     const variants: SVGGElement[] = [];
     for (let i = 0; i < variantCount; i++) {
-      const opts = roughOptionsFor(styleForFill ?? {}, baseSeed + i * 7919, !!node.closed, currentLook);
+      const opts = roughOptionsFor(styleForFill ?? {}, baseSeed + i * 7919, !!node.closed, look);
       const rendered = rc.path(d, opts);
       const variantWrap = document.createElementNS(SVG_NS, "g");
       variantWrap.appendChild(rendered);
@@ -1098,11 +1097,11 @@ function buildNode(
 
   if (node.children) {
     for (const child of node.children) {
-      buildNode(child, g, rc, tl, sceneSeed, boilTargets, pendingSprings, pendingConnectors, pendingParticles, soundEvents);
+      buildNode(child, g, rc, tl, sceneSeed, look, boilTargets, pendingSprings, pendingConnectors, pendingParticles, soundEvents);
     }
   }
 
-  applyAnimations(g, node, tl, cleanPathD, strokeWidthPx, closed, points, rc, sceneSeed);
+  applyAnimations(g, node, tl, cleanPathD, strokeWidthPx, closed, points, rc, sceneSeed, look);
 }
 
 /**
@@ -1126,7 +1125,8 @@ function buildMesh3D(
   g: SVGGElement,
   rc: ReturnType<typeof rough.svg>,
   tl: gsap.core.Timeline,
-  sceneSeed: number
+  sceneSeed: number,
+  look: RenderLook
 ): void {
   const vertices = node.mesh3dVertices ?? [];
   const faces = node.mesh3dFaces ?? [];
@@ -1196,7 +1196,7 @@ function buildMesh3D(
         { color: strokeColor, weight: node.style?.weight, looseness: node.style?.looseness, energy: node.style?.energy },
         baseSeed + i * 7919,
         true,
-        currentLook
+        look
       );
       opts.fill = r.color;
       opts.fillStyle = "solid";
@@ -1237,7 +1237,8 @@ function buildLimb(
   g: SVGGElement,
   rc: ReturnType<typeof rough.svg>,
   tl: gsap.core.Timeline,
-  sceneSeed: number
+  sceneSeed: number,
+  look: RenderLook
 ): void {
   const rootX = node.limbRootX ?? 0;
   const rootY = node.limbRootY ?? 0;
@@ -1271,7 +1272,7 @@ function buildLimb(
       false,
       smooth
     );
-    const opts = roughOptionsFor(node.style ?? {}, baseSeed, false, currentLook);
+    const opts = roughOptionsFor(node.style ?? {}, baseSeed, false, look);
     limbGroup.appendChild(rc.path(d, opts));
 
     if (capRadius > 0) {
@@ -1279,7 +1280,7 @@ function buildLimb(
         { color: capColor, weight: node.style?.weight, looseness: node.style?.looseness, energy: node.style?.energy },
         baseSeed + 7919,
         true,
-        currentLook
+        look
       );
       capOpts.fill = capColor;
       capOpts.fillStyle = "solid";
@@ -1355,7 +1356,8 @@ function applyAnimations(
   closed: boolean,
   points: Point[] | null,
   rc: ReturnType<typeof rough.svg>,
-  sceneSeed: number
+  sceneSeed: number,
+  look: RenderLook
 ): void {
   for (const op of node.animations) {
     const at = op.at ?? 0;
@@ -1364,7 +1366,7 @@ function applyAnimations(
       case "drawOn":
         // Duration is intentionally NOT defaulted here — applyDrawOn derives it from the
         // path's actual length when omitted, rather than every shape sharing one flat pace.
-        applyDrawOn(g, tl, at, op.duration, op.ease ?? HAND_DRAWN_EASE, cleanPathD, strokeWidthPx, closed, points);
+        applyDrawOn(g, tl, at, op.duration, op.ease ?? HAND_DRAWN_EASE, cleanPathD, strokeWidthPx, closed, points, look);
         break;
       case "appear": {
         const duration = op.duration ?? 0.6;
@@ -1393,7 +1395,7 @@ function applyAnimations(
         tl.to(g, { opacity: op.opacity, duration: op.duration ?? 0.6, ease: op.ease ?? "power2.out" }, at);
         break;
       case "morphTo":
-        applyMorphTo(g, tl, at, op.duration ?? 0.8, op.ease ?? "power2.inOut", op.points, node, rc, sceneSeed);
+        applyMorphTo(g, tl, at, op.duration ?? 0.8, op.ease ?? "power2.inOut", op.points, node, rc, sceneSeed, look);
         break;
       case "squashTo":
         tl.to(
@@ -1448,7 +1450,8 @@ function applyMorphTo(
   targetPoints: Point[],
   node: SerializedNode,
   rc: ReturnType<typeof rough.svg>,
-  sceneSeed: number
+  sceneSeed: number,
+  look: RenderLook
 ): void {
   const artGroup = g.querySelector(":scope > g") as SVGGElement | null;
   const variantWrap = artGroup?.querySelector(":scope > g") as SVGGElement | null;
@@ -1458,7 +1461,7 @@ function applyMorphTo(
   const closed = !!node.closed;
   const targetD = pathFromPoints(targetPoints, closed, smooth);
   const baseSeed = sceneSeed ^ node.seed;
-  const opts = roughOptionsFor(node.style ?? {}, baseSeed, closed, currentLook);
+  const opts = roughOptionsFor(node.style ?? {}, baseSeed, closed, look);
   const targetRendered = rc.path(targetD, opts);
 
   const hiddenHolder = document.createElementNS(SVG_NS, "g");
@@ -1514,7 +1517,8 @@ function applyDrawOn(
   cleanPathD: string | null,
   strokeWidthPx: number,
   closed: boolean,
-  points: Point[] | null
+  points: Point[] | null,
+  look: RenderLook
 ): void {
   const artGroup = g.querySelector(":scope > g") as SVGGElement | null;
   if (!cleanPathD || !artGroup) return;
@@ -1622,7 +1626,7 @@ function applyDrawOn(
   // A visible pen tip is an "ink" affordance — a flat/precise look traces the same mask
   // reveal with no hand implied, so the tip stays at its default (hidden) opacity, set
   // inside makePenTip, rather than being created differently per look.
-  if (currentLook === "ink") {
+  if (look === "ink") {
     const fade = Math.min(0.08, duration * 0.2);
     tl.fromTo(tip, { opacity: 0 }, { opacity: 1, duration: fade }, at);
     tl.to(tip, { opacity: 0, duration: fade }, at + duration - fade);

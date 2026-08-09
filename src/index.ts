@@ -17,6 +17,8 @@ export { Sound, sound, toMidi } from "./core/sound.js";
 export type { SoundOpts } from "./core/sound.js";
 export { shade } from "./core/color.js";
 export type { ShadeOptions } from "./core/color.js";
+export { inspectRenderable, validateRenderable, AGENT_REPORT_VERSION } from "./core/agent.js";
+export type { AgentFinding, AgentManifest, AgentNodeManifest, AgentSceneManifest } from "./core/agent.js";
 export type {
   Point,
   Point3,
