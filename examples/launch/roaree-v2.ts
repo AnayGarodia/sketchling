@@ -32,15 +32,20 @@ function buildCub() {
   const g = sketch.group([]);
 
   const maneStyle = { color: "#d99530", weight: "confident" as const, fill: { color: "#e2a343", style: "solid" as const } };
+  // Radii bumped ~25% past roaree.ts's own (24-26) — at look: "ink" the gaps between
+  // adjacent mane blobs were invisible under rough.js's overlapping hand-drawn strokes,
+  // but look: "flat"'s crisp precise edges (needed here for gradient fills) exposed them
+  // as real holes once the roar pose's ear/arm rotation moved out of the way (found by
+  // comparing this scene's roar frame against roaree.ts's own at the same beat).
   const mane = sketch.group([
-    sketch.blob(150, 245, 26, maneStyle, 9),
-    sketch.blob(190, 235, 24, maneStyle, 9),
-    sketch.blob(215, 260, 24, maneStyle, 9),
-    sketch.blob(210, 295, 24, maneStyle, 9),
-    sketch.blob(180, 315, 24, maneStyle, 9),
-    sketch.blob(145, 315, 24, maneStyle, 9),
-    sketch.blob(118, 295, 24, maneStyle, 9),
-    sketch.blob(112, 260, 24, maneStyle, 9),
+    sketch.blob(150, 245, 32, maneStyle, 9),
+    sketch.blob(190, 235, 30, maneStyle, 9),
+    sketch.blob(215, 260, 30, maneStyle, 9),
+    sketch.blob(210, 295, 30, maneStyle, 9),
+    sketch.blob(180, 315, 30, maneStyle, 9),
+    sketch.blob(145, 315, 30, maneStyle, 9),
+    sketch.blob(118, 295, 30, maneStyle, 9),
+    sketch.blob(112, 260, 30, maneStyle, 9),
   ]);
 
   const head = sketch.blob(163, 278, 46, { color: LION, weight: "confident", fill: LION_FILL }, 12);
@@ -279,7 +284,13 @@ scene.add(title).stagger(0.05, { at: 0.1, duration: 0.35 });
 
 const cub = buildCub();
 scene.add(cub.group);
-cub.group.moveTo(150, 300, { at: 0, duration: 0.001 });
+// moveTo lands the node's bbox CENTER at (x, y), not its feet — the cub's bbox spans
+// roughly y 203 (mane top) to 437 (foot bottom), so a target of y: 300 (inherited from
+// roaree.ts) leaves the feet floating ~59px above GROUND_Y (476), visible once the ground
+// itself is opaque instead of a thin line (a real bug in roaree.ts too, just less obvious
+// there — confirmed by rendering it at the same walk timestamp). y: 359 puts the feet on
+// the ground instead.
+cub.group.moveTo(150, 359, { at: 0, duration: 0.001 });
 
 // --- Entrance ---
 const ENTRANCE_LEAVES: Array<[any, number]> = [
