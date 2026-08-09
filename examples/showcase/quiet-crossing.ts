@@ -130,31 +130,43 @@ for (const rx of [40, 55, 68, 585, 600]) {
 function buildWalker(): { group: ReturnType<typeof sketch.group>; legL: any; legR: any; armSwing: any } {
   const g = sketch.group();
   scene.add(g);
+  // Tapered coat/cloak torso (narrow shoulders, wide hem) instead of a boxy rectangle —
+  // reads as a figure in clothing, not a blob. Shoulders at y:-62, head bottom at y:-64
+  // (radius 9 from a y:-73 center) leaves a real neck gap instead of head and torso fusing
+  // into one lump.
   g.add(
     sketch.loop(
-      [
-        [-9, -58], [9, -58], [13, -50], [11, 6], [-11, 6], [-13, -50],
-      ],
-      { color: SIL, weight: "confident", looseness: 0.12, fill: { color: SIL, style: "solid" }, smooth: true }
+      [[-7, -62], [7, -62], [12, -55], [16, -8], [-16, -8], [-12, -55]],
+      { color: SIL, weight: "confident", looseness: 0.1, fill: { color: SIL, style: "solid" }, smooth: true }
     )
   );
-  g.add(sketch.blob(0, -68, 10, { color: SIL, weight: "confident", looseness: 0.1, fill: { color: SIL, style: "solid" } }, 12));
-  const armSwing = sketch.stroke(
-    [[10, -48], [22, -30], [17, -8]],
-    { color: SIL, weight: "confident", looseness: 0.12, smooth: true }
+  g.add(sketch.blob(0, -73, 9, { color: SIL, weight: "confident", looseness: 0.08, fill: { color: SIL, style: "solid" } }, 12));
+  // A filled tapered wedge, not a bare stroke — a bare line arm reads as a stray hook or
+  // crack in the silhouette rather than a limb with any volume. Pivoted at the shoulder
+  // (its own local hip-equivalent point) so it swings from the joint, not its own centroid.
+  const armSwing = sketch.loop(
+    [[8, -58], [13, -55], [15, -32], [10, -12], [5, -16], [6, -40]],
+    { color: SIL, weight: "confident", looseness: 0.1, fill: { color: SIL, style: "solid" }, smooth: true }
   );
+  armSwing.pivotAt(10, -57);
   g.add(armSwing);
+  // Legs hang from the coat hem (y:-8), each a simple tapered wedge offset from center for
+  // stride width — NOT sharing one crossing point, which is what made the old two-loop legs
+  // splay into an X. Each is pivoted at its own hip point (its local top-center), so
+  // rotateTo swings it from the hip like a real leg instead of spinning around the whole
+  // leg's own bounding-box center (the root cause of the "horrible" splayed look).
   const legL = sketch.loop(
-    [[-3, 4], [3, 4], [10, 40], [4, 44], [-6, 10]],
-    { color: SIL, weight: "confident", looseness: 0.12, fill: { color: SIL, style: "solid" }, smooth: true }
+    [[2, -8], [-6, -8], [-9, 44], [0, 44]],
+    { color: SIL, weight: "confident", looseness: 0.1, fill: { color: SIL, style: "solid" }, smooth: true }
   );
+  legL.pivotAt(-2, -8);
   const legR = sketch.loop(
-    [[-3, 4], [3, 4], [-4, 44], [-10, 40], [-6, 10]],
-    { color: SIL, weight: "confident", looseness: 0.12, fill: { color: SIL, style: "solid" }, smooth: true }
+    [[-2, -8], [6, -8], [9, 44], [0, 44]],
+    { color: SIL, weight: "confident", looseness: 0.1, fill: { color: SIL, style: "solid" }, smooth: true }
   );
+  legR.pivotAt(2, -8);
   g.add(legL);
   g.add(legR);
-  g.pivotAt(0, 44);
   return { group: g, legL, legR, armSwing };
 }
 
@@ -164,7 +176,10 @@ walker.group.initial({ x: 120, y: GROUND_Y - 4 });
 const WALK_START = 1.6;
 const STEP_DUR = 1.1;
 const STEPS = 7;
-const STEP_DX = 58;
+// Short enough that the walker's path stops clear of the tree canopy (branches reach to
+// TREE_X - 52 = 418) instead of passing directly under/through it — an earlier version
+// walked the figure's head straight into the branches mid-frame, reading as antlers.
+const STEP_DX = 35;
 const WALK_END = WALK_START + STEPS * STEP_DUR;
 
 walker.group.appear({ at: WALK_START - 0.4, duration: 0.4 });
