@@ -1310,8 +1310,16 @@ function applyInitialTransform(g: SVGGElement, node: SerializedNode): void {
   };
   // svgOrigin (not transformOrigin) takes a point in the SVG's own coordinate system rather
   // than a percentage of the element's bbox — what a pivot away from the shape's own center
-  // needs (e.g. a limb rotating from a shoulder point outside its own bounds).
-  if (t.pivot) props.svgOrigin = `${t.pivot[0]} ${t.pivot[1]}`;
+  // needs (e.g. a limb rotating from a shoulder point outside its own bounds). Critically,
+  // that coordinate system is the node's own PRE-TRANSLATE local space (the same space its
+  // authored points live in), not the post-translate canvas position — GSAP computes
+  // svgOrigin before applying x/y. `pivotAt`'s own doc comment calls it an "absolute canvas
+  // point", which only happens to hold when t.x/t.y are 0 (every existing example pivots
+  // either an untranslated node, or sets the pivot before any moveBy/initial({x,y}) lands on
+  // the same node) — subtract the translate here so it's actually true in general. Caught by
+  // a walker rig that combined `.initial({x,y})` with `.pivotAt()` on the same group: without
+  // this, a small rotation flung the whole shape off-canvas.
+  if (t.pivot) props.svgOrigin = `${t.pivot[0] - t.x} ${t.pivot[1] - t.y}`;
   else props.transformOrigin = "50% 50%";
   gsap.set(g, props);
 }
