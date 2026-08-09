@@ -127,29 +127,28 @@ for (const rx of [40, 55, 68, 585, 600]) {
 // The figure — a solid silhouette loop, no face, no big eyes, naturalistic proportions,
 // small in frame. Two-part body (torso + simple bent legs) is enough to read as a
 // walking person from this distance; anything more detailed would fight the silhouette.
-function buildWalker(): { group: ReturnType<typeof sketch.group>; legL: any; legR: any; armSwing: any } {
+function buildWalker(): { group: ReturnType<typeof sketch.group>; legL: any; legR: any } {
   const g = sketch.group();
   scene.add(g);
   // Tapered coat/cloak torso (narrow shoulders, wide hem) instead of a boxy rectangle —
   // reads as a figure in clothing, not a blob. Shoulders at y:-62, head bottom at y:-64
   // (radius 9 from a y:-73 center) leaves a real neck gap instead of head and torso fusing
-  // into one lump.
+  // into one lump. The arm is folded INTO this single outline (the small bump on the right
+  // side, elbow bent, hand tucked near the hem) rather than a separate rotated shape — a
+  // loop that only overlaps the torso by proximity visibly detaches the instant it rotates
+  // even a little, since the pivot sits right at the torso's own edge, not inside it. One
+  // continuous silhouette can't ever show a seam because there isn't one to begin with; a
+  // motionless arm reads fine at this scale and this gait's speed anyway.
   g.add(
     sketch.loop(
-      [[-7, -62], [7, -62], [12, -55], [16, -8], [-16, -8], [-12, -55]],
+      [
+        [-7, -62], [7, -62], [12, -55], [17, -40], [13, -26], [16, -8],
+        [-16, -8], [-12, -55],
+      ],
       { color: SIL, weight: "confident", looseness: 0.1, fill: { color: SIL, style: "solid" }, smooth: true }
     )
   );
   g.add(sketch.blob(0, -73, 9, { color: SIL, weight: "confident", looseness: 0.08, fill: { color: SIL, style: "solid" } }, 12));
-  // A filled tapered wedge, not a bare stroke — a bare line arm reads as a stray hook or
-  // crack in the silhouette rather than a limb with any volume. Pivoted at the shoulder
-  // (its own local hip-equivalent point) so it swings from the joint, not its own centroid.
-  const armSwing = sketch.loop(
-    [[8, -58], [13, -55], [15, -32], [10, -12], [5, -16], [6, -40]],
-    { color: SIL, weight: "confident", looseness: 0.1, fill: { color: SIL, style: "solid" }, smooth: true }
-  );
-  armSwing.pivotAt(10, -57);
-  g.add(armSwing);
   // Legs hang from the coat hem (y:-8), each a simple tapered wedge offset from center for
   // stride width — NOT sharing one crossing point, which is what made the old two-loop legs
   // splay into an X. Each is pivoted at its own hip point (its local top-center), so
@@ -167,7 +166,7 @@ function buildWalker(): { group: ReturnType<typeof sketch.group>; legL: any; leg
   legR.pivotAt(2, -8);
   g.add(legL);
   g.add(legR);
-  return { group: g, legL, legR, armSwing };
+  return { group: g, legL, legR };
 }
 
 const walker = buildWalker();
@@ -193,7 +192,6 @@ for (let i = 0; i < STEPS; i++) {
   walker.group.moveBy(0, 3, { at: at + STEP_DUR / 2, duration: STEP_DUR / 2, ease: "sine.in" });
   walker.legL.rotateTo(i % 2 === 0 ? 24 : -24, { at, duration: STEP_DUR, ease: "sine.inOut" });
   walker.legR.rotateTo(i % 2 === 0 ? -24 : 24, { at, duration: STEP_DUR, ease: "sine.inOut" });
-  walker.armSwing.rotateTo(i % 2 === 0 ? -14 : 14, { at, duration: STEP_DUR, ease: "sine.inOut" });
 }
 
 // Long stillness before and after — patience is part of the register. The camera pan
