@@ -8,6 +8,18 @@ export interface WalkLeg {
   hipX: number;
 }
 
+export interface WalkArm {
+  // Any node with its own .rotateTo — a Limb, or a plain Stroke/Group swung as a rigid
+  // piece. The CALLER is responsible for .pivotAt()'ing it at the shoulder before passing
+  // it in (gait.ts doesn't know the arm's own local geometry) — an un-pivoted arm rotates
+  // around its own bbox center instead of the joint, the exact bug quiet-crossing.ts's
+  // walker hit before it was fixed (see AGENTS.md's Secondary motion / pivot notes).
+  node: SketchNode;
+  // Degrees of swing off rest pose, each direction. Default 16 — a real but not
+  // exaggerated counter-swing; push higher for a brisker gait, lower for a subtle one.
+  swingAngle?: number;
+}
+
 export interface WalkOptions {
   // The node that actually travels forward each step — usually the character's whole
   // group. Driven with moveBy (relative), never moveTo, so it composes with wherever the
@@ -22,6 +34,15 @@ export interface WalkOptions {
   liftHeight?: number;
   bodyBob?: number;
   at?: number;
+  // Optional contralateral arm counter-swing — arms[0] pairs with legs[0] as the SAME side
+  // (right arm/right leg), and swings OPPOSITE that leg's own phase, the way a real gait's
+  // arms and legs cross-pattern (right leg forward <-> left arm forward). Every hand-built
+  // walk cycle in this repo either skipped arm motion entirely or fused the arm into a
+  // static silhouette after a separately-rotated arm detached mid-swing — this generates
+  // the same phase-locked swing gait.ts already proves safe for legs, so a rigged character
+  // gets working arm motion for free instead of needing its own hand-tuned rotateTo calls
+  // (or giving up on arm motion) every time.
+  arms?: [WalkArm, WalkArm];
 }
 
 export interface WalkResult {
@@ -63,6 +84,7 @@ export function walk(opts: WalkOptions): WalkResult {
     liftHeight = 30,
     bodyBob = 7,
     at = 0,
+    arms,
   } = opts;
   const half = stepDuration / 2;
   const upEase = "sine.out";
@@ -81,6 +103,9 @@ export function walk(opts: WalkOptions): WalkResult {
   const resetAt = Math.max(0, at - 0.01);
   for (const leg of legs) {
     leg.limb.ikTo(leg.hipX, groundY, { at: resetAt, duration: 0.001 });
+  }
+  if (arms) {
+    for (const arm of arms) arm.node.rotateTo(0, { at: resetAt, duration: 0.001 });
   }
 
   // Local-space plant offset from each leg's own hipX (0 = directly under the hip).
@@ -124,6 +149,20 @@ export function walk(opts: WalkOptions): WalkResult {
     });
     lead.limb.ikTo(lead.hipX, groundY, { at: tMid, duration: half, ease: downEase });
     localX[leadIdx] = 0;
+
+    // Arms counter-swing same-side-opposite-phase to the legs: the arm paired with the
+    // LEADING leg swings backward while that leg swings forward (a real gait's cross
+    // pattern — right leg forward, left arm forward, right arm back). One tween across the
+    // full step (not two half-step arcs like the legs) is enough — an arm has no plant/lift
+    // constraint to satisfy, just a smooth swing through the step's whole duration.
+    if (arms) {
+      const leadArm = arms[leadIdx];
+      const trailArm = arms[trailIdx];
+      const leadSwing = leadArm.swingAngle ?? 16;
+      const trailSwing = trailArm.swingAngle ?? 16;
+      leadArm.node.rotateTo(-leadSwing, { at: t0, duration: stepDuration, ease: "sine.inOut" });
+      trailArm.node.rotateTo(trailSwing, { at: t0, duration: stepDuration, ease: "sine.inOut" });
+    }
   }
 
   return { endAt: at + steps * stepDuration };
