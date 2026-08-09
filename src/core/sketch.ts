@@ -12,8 +12,10 @@ import { Connector } from "./connector.js";
 import { Particles, type ParticleOpts } from "./particles.js";
 import { quickRig, type QuickRig, type QuickRigOpts } from "./quickrig.js";
 import { Sound, type SoundOpts } from "./sound.js";
+import { shade, type ShadeOptions } from "./color.js";
 import type { SketchNode } from "./node.js";
 import type { NodeStyle, Point, Point3 } from "./types.js";
+import type { SceneBackground } from "./types.js";
 
 export const sketch = {
   scene(opts: SceneOptions = {}): Scene {
@@ -121,5 +123,18 @@ export const sketch = {
    * draws around shape helpers. */
   sound(pitch: string | number | null, opts: SoundOpts = {}): Sound {
     return new Sound(pitch, opts);
+  },
+  /** Derives a real light-direction gradient from one base color instead of hand-picking
+   * 2-3 hex stops per shape — a highlight → base → shadow spread, `from` picking which edge
+   * the light comes from ("top" default), `amount` (0-1, default 0.35) picking how strong
+   * the falloff is. Returns the same `{stops, direction}` shape `fill.color`/
+   * `scene.background` already accept, so `fill: { color: sketch.shade("#8a7460"), style:
+   * "solid" }` is a drop-in replacement for a flat color anywhere a gradient is valid (see
+   * NodeStyle.fill's own doc comment on the solid-fillStyle requirement). The shadow side is
+   * nudged slightly cool/blue-violet and the lit side slightly warm, not a plain lighter/
+   * darker lerp — the same "cooler further back, warmer where lit" instinct every hand-
+   * authored gradient in the showcase gallery already uses, made automatic. */
+  shade(base: string, opts: ShadeOptions = {}): SceneBackground {
+    return shade(base, opts);
   },
 };

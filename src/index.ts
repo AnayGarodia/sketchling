@@ -15,6 +15,8 @@ export { quickRig } from "./core/quickrig.js";
 export type { QuickRig, QuickRigOpts } from "./core/quickrig.js";
 export { Sound, sound, toMidi } from "./core/sound.js";
 export type { SoundOpts } from "./core/sound.js";
+export { shade } from "./core/color.js";
+export type { ShadeOptions } from "./core/color.js";
 export type {
   Point,
   Point3,
