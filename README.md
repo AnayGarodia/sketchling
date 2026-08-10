@@ -3,25 +3,33 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![npm version](https://img.shields.io/npm/v/sketchling.svg)](https://www.npmjs.com/package/sketchling)
 
-A hand drawn illustration and animation language for LLMs. Manim gave language models a way to express math visually in code. Sketchling does the same for expressive, hand drawn illustration and motion, in the register of Notion's and Anthropic's site illustrations.
+A hand drawn illustration and animation language for LLMs. Manim gave language models a way to express math visually in code. Sketchling does the same for expressive, hand drawn illustration and motion.
 
-![potted plant, drawn and animated by sketchling](docs/potted-plant.gif)
+![The Lantern Maker: an artisan cuts paper by lamplight](docs/hero-lantern-maker.gif)
+
+This is a frame from *The Lantern Maker*, a nine scene, three minute short film. An artisan crafts a paper lantern by lamplight, then carries it through a darkening town to release it from a bridge at night. Watch the full thing at [`docs/story-lantern-maker.mp4`](docs/story-lantern-maker.mp4).
+
+Nobody hand animated this. [Devin](https://devin.ai) built it cold, working from nothing but this repository's own docs, the same way every example in [`examples/`](examples/) was built: an LLM writing TypeScript against a vocabulary, not a human hand authoring vector art. That is the actual point of sketchling. If a coding agent can read a README and come out the other side with a real hand drawn film, the vocabulary is doing its job.
+
+A few more scenes from the same batch, also built cold, also unedited:
+
+<table>
+<tr>
+<td><img src="docs/hero-rain-city-night.gif" alt="a rainy city street at night, an umbrella, warm window light"></td>
+<td><img src="docs/hero-dawn-fisherman.gif" alt="a rowboat on still water at first light"></td>
+</tr>
+</table>
+
+More stills from the same set: [lighthouse watch](docs/showcase-lighthouse-watch.png), [campfire story](docs/showcase-campfire-story.png), [market street](docs/showcase-market-street.png), [summit sunrise](docs/showcase-summit-sunrise.png), [snow village](docs/showcase-snow-village.png), [moonlit sail](docs/showcase-moonlit-sail.png). Full videos for all of these live in [`docs/`](docs/), source in [`examples/showcase/`](examples/showcase/).
+
+## Install
 
 ```
 npm install -g sketchling
 npx playwright install chromium
 ```
 
-That second line is a one time step. Rendering runs through a real headless Chromium browser (via Playwright), not a canvas library, so the first install pulls down a Chromium binary (a couple hundred MB). Video export also needs `ffmpeg` on your `PATH`; a still-only workflow does not.
-
-## Why this exists
-
-Ask an LLM to hand code an SVG path for a person or a tree and you get something crude. Two choices make hand drawn illustration tractable for a model instead:
-
-1. **The vocabulary is expressive, not geometric.** There is no `Circle()` or `Arc()`. Primitives take character parameters like `weight`, `looseness`, and `energy`, not just coordinates. A loose stroke hides imprecision by design instead of exposing it.
-2. **The renderer is forgiving by default.** Every shape draws through a [rough.js](https://roughjs.com) based sketchy engine: jittered strokes, imperfect closure, variable width. Slightly off geometry reads as style, not as a mistake, the same slack that lets a hand drawn line hide a shaky hand.
-
-The result is meant to be driven by an LLM writing TypeScript, not a human hand authoring vector art.
+The second line is a one time step. Rendering runs through a real headless Chromium browser (via Playwright), not a canvas library, so the first install pulls down a Chromium binary, a couple hundred MB. Video export also needs `ffmpeg` on your `PATH`. A still only workflow does not.
 
 ## Quick start
 
@@ -47,19 +55,12 @@ sketchling render scene.ts --serve
 
 Working inside a clone of this repo instead of a published install? Import from `../src/index.js` in place of `"sketchling"`, or run `npm link` once you have built.
 
-## What it can draw
+## Why this exists
 
-Close to seventy example scenes live in [`examples/`](examples/), each one a real animation, not a static frame. A few, to give a sense of range:
+Ask an LLM to hand code an SVG path for a person or a tree and you get something crude. Two choices make hand drawn illustration tractable for a model instead:
 
-| | | |
-|---|---|---|
-| ![quiet crossing](docs/showcase-quiet-crossing.png) | ![quiet ride](docs/showcase-quiet-ride.png) | ![nightfall hill](docs/showcase-nightfall-hill.png) |
-| ![dawn fisherman](docs/showcase-dawn-fisherman.png) | ![rain city night](docs/showcase-rain-city-night.png) | ![campfire story](docs/showcase-campfire-story.png) |
-| ![lighthouse watch](docs/showcase-lighthouse-watch.png) | ![market street](docs/showcase-market-street.png) | ![summit sunrise](docs/showcase-summit-sunrise.png) |
-
-*The Lantern Maker*, a nine scene, three minute short film, is the longest single piece in the repo: an artisan crafts a paper lantern by lamplight, then carries it through a darkening town to release it from a bridge at night. Watch it at [`docs/story-lantern-maker.mp4`](docs/story-lantern-maker.mp4), source at [`examples/story/lantern-maker.ts`](examples/story/lantern-maker.ts).
-
-Under the hood, every one of these is built from the same small set of primitives: strokes, loops, blobs, groups, and text, styled and timed, nothing more exotic than that.
+1. **The vocabulary is expressive, not geometric.** There is no `Circle()` or `Arc()`. Primitives take character parameters like `weight`, `looseness`, and `energy`, not just coordinates. A loose stroke hides imprecision by design instead of exposing it.
+2. **The renderer is forgiving by default.** Every shape draws through a [rough.js](https://roughjs.com) based sketchy engine: jittered strokes, imperfect closure, variable width. Slightly off geometry reads as style, not as a mistake, the same slack that lets a hand drawn line hide a shaky hand.
 
 ## Core capabilities
 
@@ -69,7 +70,7 @@ Under the hood, every one of these is built from the same small set of primitive
 
 **IK rigging and procedural gait.** `sketch.limb` gives you a two bone chain solved from a target position. `sketch.walk` turns two of those into a full bipedal gait, feet planting without sliding, arms counter swinging with the legs, generated from step count and stride length rather than hand tuned per pose.
 
-**Camera and film.** Pan and zoom through a world bigger than one screen, follow a moving character, or cut several independent scenes together into one continuous piece with `sketch.film()`.
+**Camera and film.** Pan and zoom through a world bigger than one screen, follow a moving character, or cut several independent scenes together into one continuous piece with `sketch.film()`, the tool *The Lantern Maker* itself is built with.
 
 **Secondary motion.** `springTo` and `sketch.connector` give you damped spring lag and a bendable line that tracks a live target, the difference between an ear that snaps to a new angle and one that actually flops.
 
@@ -87,9 +88,7 @@ A scene graph is built by running your `scene.ts` in plain Node, no DOM involved
 
 ## Status
 
-Early and opinionated by design. Version 1 targets one aesthetic, flat hand drawn line illustration in the Notion and Anthropic register, rather than trying to be a general purpose illustration engine from day one. The bet is that a small, well designed vocabulary in one register beats a sprawling API that does everything adequately. Broader styles can follow once this one is genuinely good.
-
-Not yet built: more shape helpers beyond `arrow` and `speechBubble` (a star, a checkmark), built the same way as thin compositions of existing primitives rather than a curated asset library, since that stays a deliberate non-goal; and a real skeleton extracted from an arbitrary drawn silhouette (`quickRig` currently derives proportions from a bounding box, which covers the common case well).
+Early and opinionated by design. Version 1 targets one aesthetic, flat hand drawn line illustration, rather than trying to be a general purpose illustration engine from day one. The bet is that a small, well designed vocabulary in one register beats a sprawling API that does everything adequately. Broader styles can follow once this one is genuinely good.
 
 ## Contributing
 
