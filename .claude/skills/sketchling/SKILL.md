@@ -18,6 +18,8 @@ export default scene;
 
 `width`/`height` are the world — where everything is authored/positioned, and what the background fills. Pass `viewport: { width, height }` too when the world is bigger than one screen and a `scene.camera()` (below) pans/zooms around inside it; omit it and the output frame is just the whole world, unchanged from every scene that isn't using a camera.
 
+`sketch.scene(...)` also takes `look` and `texture` (see "Look and texture" below) — worth deciding on purpose before drawing anything, not leaving at the default. Most of this repo's own examples happen to use `look: "ink"` in a restrained, muted register — that reflects what one particular batch of films was about, not a recommendation or a ceiling. `"flat"` (crisp, ligne-claire/Tintin-adjacent line art), `"clay"` (stop-motion cadence), `"lit3d"`/`"toon3d"` (real lit 3D, cel-shaded or not), and `texture: "pixel"`/`"watercolor"`/`"grain"` are equally finished, equally real registers on the exact same authored scene.
+
 ```
 sketchling render scene.ts --out preview.png            # settled end state
 sketchling render scene.ts --out mid.png --at 0.6        # a specific timeline moment

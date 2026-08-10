@@ -22,6 +22,8 @@ A few more scenes from the same batch, also built cold, also unedited:
 
 More stills from the same set: [lighthouse watch](docs/showcase-lighthouse-watch.png), [campfire story](docs/showcase-campfire-story.png), [market street](docs/showcase-market-street.png), [summit sunrise](docs/showcase-summit-sunrise.png), [snow village](docs/showcase-snow-village.png), [moonlit sail](docs/showcase-moonlit-sail.png). Full videos for all of these live in [`docs/`](docs/), source in [`examples/showcase/`](examples/showcase/).
 
+Everything above happens to share one visual register — hand-drawn ink, restrained and muted. That's this particular batch's own choice, not a ceiling: the same tools render just as cleanly as crisp ligne-claire line art, cel-shaded 3D, stop-motion, or a pixelated frame, all from the same authored scene (see `look`/`texture` under Core capabilities below).
+
 ## Install
 
 ```
