@@ -1,4 +1,4 @@
-import type { Point } from "./types.js";
+import type { Point, SerializedNode } from "./types.js";
 
 /** Deterministic PRNG (mulberry32) so the same seed always draws the same "imperfections". */
 export function seededRandom(seed: number): () => number {
@@ -118,6 +118,23 @@ export function unionBBox(boxes: BBox[]): BBox {
     maxX: Math.max(...boxes.map((b) => b.maxX)),
     maxY: Math.max(...boxes.map((b) => b.maxY)),
   };
+}
+
+/** A serialized node's own bounding box: its own points unioned with every child's,
+ * recursively — the one "what space does this node occupy" computation, shared by
+ * render/scene-query.ts's computeNodeBBox (moveTo/moveBy placement, camera framing) and
+ * core/agent.ts's nodeBounds (the `inspect`/`validate` CLI's reported node bounds). Those
+ * two used to hand-copy the identical recursion because core/ can't import from render/
+ * (a one-way dependency) — this lives in core/ instead, so both sides call the same
+ * implementation rather than risk silently drifting apart. */
+export function nodeBBox(node: SerializedNode): BBox | undefined {
+  const boxes: BBox[] = [];
+  if (node.points?.length) boxes.push(bboxOfPoints(node.points));
+  for (const child of node.children ?? []) {
+    const childBox = nodeBBox(child);
+    if (childBox) boxes.push(childBox);
+  }
+  return boxes.length ? unionBBox(boxes) : undefined;
 }
 
 export function bboxOverlapRatio(a: BBox, b: BBox): number {

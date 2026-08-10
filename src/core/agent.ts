@@ -1,4 +1,4 @@
-import { bboxOfPoints, unionBBox, type BBox } from "./geometry.js";
+import { nodeBBox, type BBox } from "./geometry.js";
 import type { AnimOp, Renderable, SerializedNode, SerializedScene } from "./types.js";
 
 export const AGENT_REPORT_VERSION = 1;
@@ -81,13 +81,7 @@ function animationEnd(op: AnimOp): number {
 }
 
 export function nodeBounds(node: SerializedNode): BBox | undefined {
-  const boxes: BBox[] = [];
-  if (node.points?.length) boxes.push(bboxOfPoints(node.points));
-  for (const child of node.children ?? []) {
-    const childBounds = nodeBounds(child);
-    if (childBounds) boxes.push(childBounds);
-  }
-  return boxes.length ? unionBBox(boxes) : undefined;
+  return nodeBBox(node);
 }
 
 /** Checks the semantic contract a renderer cannot safely infer. Warnings are explicit by
@@ -104,8 +98,8 @@ function validateScene(scene: SerializedScene, sceneIndex: number, findings: Age
   if (!Number.isFinite(scene.width) || !Number.isFinite(scene.height) || scene.width <= 0 || scene.height <= 0) {
     findings.push({ level: "error", code: "invalid-scene-size", message: `${scenePrefix}width and height must be positive finite numbers.` });
   }
-  if (scene.viewportWidth <= 0 || scene.viewportHeight <= 0) {
-    findings.push({ level: "error", code: "invalid-viewport-size", message: `${scenePrefix}viewport dimensions must be positive.` });
+  if (!Number.isFinite(scene.viewportWidth) || !Number.isFinite(scene.viewportHeight) || scene.viewportWidth <= 0 || scene.viewportHeight <= 0) {
+    findings.push({ level: "error", code: "invalid-viewport-size", message: `${scenePrefix}viewport dimensions must be positive finite numbers.` });
   }
   if ((scene.look === "lit3d" || scene.look === "toon3d") && scene.texture) {
     findings.push({ level: "warn", code: "unsupported-3d-texture", message: `${scenePrefix}texture "${scene.texture}" is ignored by the ${scene.look} renderer.` });

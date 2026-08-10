@@ -97,6 +97,16 @@ interface RenderReport {
 const FRAME_TIMEOUT_MS = 8_000;
 const MAX_ATTEMPTS = 4;
 
+/** Shared by every command that renders (or otherwise needs a passing scene) rather than
+ * just reporting validation state — `render` and `contact-sheet` used to hand-copy this
+ * exact check-and-throw, which meant a future change to the message or to what counts as a
+ * blocking error had to be applied in both places by hand. */
+function assertValid(validation: ReturnType<typeof validateRenderable>): void {
+  if (validation.some((finding) => finding.level === "error")) {
+    throw new Error("Scene validation failed. Run `sketchling validate <sceneFile> --json` for structured diagnostics.");
+  }
+}
+
 async function runRender(sceneFile: string, opts: RenderOpts): Promise<RenderReport> {
   const absScene = path.resolve(process.cwd(), sceneFile);
   const workdir = mkdtempSync(path.join(tmpdir(), "sketchling-"));
@@ -108,9 +118,7 @@ async function runRender(sceneFile: string, opts: RenderOpts): Promise<RenderRep
     printAgentFindings(validation);
     printFindings(lint);
   }
-  if (validation.some((finding) => finding.level === "error")) {
-    throw new Error("Scene validation failed. Run `sketchling validate <sceneFile> --json` for structured diagnostics.");
-  }
+  assertValid(validation);
 
   const htmlPath = await buildHarness(serialized, workdir);
 
@@ -202,9 +210,7 @@ async function runContactSheet(sceneFile: string, out: string): Promise<void> {
   const workdir = mkdtempSync(path.join(tmpdir(), "sketchling-contact-sheet-"));
   const serialized = await buildScene(path.resolve(process.cwd(), sceneFile), workdir);
   const validation = validateRenderable(serialized);
-  if (validation.some((finding) => finding.level === "error")) {
-    throw new Error("Scene validation failed. Run `sketchling validate <sceneFile> --json` for structured diagnostics.");
-  }
+  assertValid(validation);
   const htmlPath = await buildHarness(serialized, workdir);
   const pixelPost = serialized.kind === "scene" && serialized.texture === "pixel" ? pixelateBuffer : undefined;
   const framesDir = path.join(workdir, "frames");
@@ -402,9 +408,18 @@ async function renderVideo(
   // mismatch. Empty string means the scene has no sketch.sound() nodes at all — skip
   // muxing entirely so every existing silent scene renders exactly as it did before audio
   // support existed, not a video with an empty/silent audio track bolted on.
+  //
+  // This step runs only after every frame is already captured, and synthesizes + base64-
+  // marshals a WAV for the WHOLE scene duration in one page.evaluate() call — a single-
+  // frame budget (FRAME_TIMEOUT_MS) is too tight for a long or note-dense score on a loaded
+  // runner, and hitting it here throws away all that already-captured frame work: the outer
+  // retry loop (see withScenePage/MAX_ATTEMPTS) relaunches Chromium and redoes the entire
+  // frame capture from scratch. Scale the budget with the scene's own length instead of
+  // reusing the frame timeout.
+  const AUDIO_TIMEOUT_MS = Math.max(FRAME_TIMEOUT_MS, heldDuration * 4_000);
   const audioBase64: string = await withTimeout(
     page.evaluate((d) => (window as any).__sketchling.renderAudio(d), heldDuration),
-    FRAME_TIMEOUT_MS,
+    AUDIO_TIMEOUT_MS,
     "render audio"
   );
   let audioPath: string | undefined;

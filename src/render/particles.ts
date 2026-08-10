@@ -1,7 +1,7 @@
 import gsap from "gsap";
 import type { RenderLook, SerializedNode } from "../core/types.js";
 import { seededRandom } from "../core/geometry.js";
-import { roughOptionsFor } from "./style.js";
+import { roughOptionsFor, flatColorOf } from "./style.js";
 import { SVG_NS, type BuildContext, type ParticleParams, type PendingParticleEmitter, type RoughCanvas } from "./internal.js";
 
 /** Draws every particle's own params ONCE, in authored order, from one seeded PRNG walked
@@ -93,7 +93,7 @@ export function buildParticles(
         }
         if (opacity <= 0) continue;
 
-        const fillColor = emitter.style.fill?.color ?? emitter.style.color ?? "#333";
+        const fillColor = flatColorOf(emitter.style.fill?.color, emitter.style.color ?? "#333");
         const opts = roughOptionsFor(emitter.style, p.seed, true, look);
         opts.fill = fillColor;
         opts.fillStyle = "solid";

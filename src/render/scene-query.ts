@@ -1,5 +1,5 @@
 import gsap from "gsap";
-import { bboxOfPoints, unionBBox, type BBox } from "../core/geometry.js";
+import { nodeBBox, type BBox } from "../core/geometry.js";
 import type { SerializedNode } from "../core/types.js";
 
 export function findSerializedNodeById(nodes: SerializedNode[], id: string): SerializedNode | null {
@@ -24,15 +24,7 @@ export function findSerializedNodeById(nodes: SerializedNode[], id: string): Ser
  * spot).
  */
 export function computeNodeBBox(node: SerializedNode): BBox | null {
-  const boxes: BBox[] = [];
-  if (node.points && node.points.length) boxes.push(bboxOfPoints(node.points));
-  if (node.children) {
-    for (const child of node.children) {
-      const b = computeNodeBBox(child);
-      if (b) boxes.push(b);
-    }
-  }
-  return boxes.length ? unionBBox(boxes) : null;
+  return nodeBBox(node) ?? null;
 }
 
 /** The live "local offset" a node's own animations currently add to its authored position
