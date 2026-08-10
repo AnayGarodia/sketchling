@@ -5,9 +5,9 @@
 
 A hand drawn illustration and animation language for LLMs. Manim gave language models a way to express math visually in code. Sketchling does the same for expressive, hand drawn illustration and motion.
 
-![The Lantern Maker: an artisan cuts paper by lamplight](docs/hero-lantern-maker.gif)
+![The Lantern Maker: the closing shot, a lantern released into a night sky over water](docs/hero-lantern-maker.gif)
 
-This is a frame from *The Lantern Maker*, a nine scene, three minute short film. An artisan crafts a paper lantern by lamplight, then carries it through a darkening town to release it from a bridge at night. Watch the full thing at [`docs/story-lantern-maker.mp4`](docs/story-lantern-maker.mp4).
+This is the closing shot of *The Lantern Maker*, a nine scene, three minute short film. An artisan crafts a paper lantern by lamplight, then carries it through a darkening town to release it from a bridge at night. Watch the full thing at [`docs/story-lantern-maker.mp4`](docs/story-lantern-maker.mp4).
 
 Nobody hand animated this. [Devin](https://devin.ai) built it cold, working from nothing but this repository's own docs, the same way every example in [`examples/`](examples/) was built: an LLM writing TypeScript against a vocabulary, not a human hand authoring vector art. That is the actual point of sketchling. If a coding agent can read a README and come out the other side with a real hand drawn film, the vocabulary is doing its job.
 
