@@ -1,5 +1,75 @@
 # Changelog
 
+## 0.5.0
+
+Driven by real feedback: five independent sessions (three on Claude Fable, two on GPT-5.6 Sol)
+each built a 4+ minute film cold, then were asked for honest product feedback. This release is
+the resulting punch list.
+
+**New capabilities**
+
+- Timeline labels and relative scheduling — the headline fix. `scene.label(name, seconds)`
+  names a moment, and every `at` a node/camera op takes can be a label reference
+  (`"liftoff"`, `"liftoff+0.4"`, `"liftoff-0.2"`) instead of a hand-computed absolute second.
+  `node.endAt` (the end time of that node's own most recently added animation) chains a
+  sequence without hand-summing durations. Answers the single most common complaint across
+  all five feedback sessions: walls of hand-computed literals from everything living on one
+  absolute-seconds timeline.
+- `moveTo`/`moveAlong` take an `anchor?: "center" | "top" | "bottom" | "left" | "right"`
+  option (default `"center"`, unchanged behavior) — fixes moving a lopsided character to a
+  point by its bbox center landing it visibly off-mark.
+- Radial gradient fills: `background: { stops, type: "radial" }` and a per-shape
+  `fill.color` radial, for a light source's real falloff (candle, lantern, sun) instead of
+  several flat-colored ellipses stacked at decreasing alpha.
+- `sketch.ellipse(cx, cy, rx, ry, style, vertices?)` — a true wobble-free ellipse/circle;
+  `sketch.blob()`'s own wobble floor (~15% of radius) never reaches zero, so this was the
+  missing clean-disc primitive every project was hand-rolling.
+- Particles: `shape?: "dot" | "streak"` (a short line along each particle's own
+  instantaneous velocity, for rain/sparks/debris — a fast-moving dot still reads as a dot,
+  not motion) and `moveTo?: {x, y, duration, ease?}` (the emitter's own spawn point moves
+  along a path, so particles can trail a moving source without re-authoring that source's
+  motion a second time).
+- `node.rotateBy(degrees, opts)` / `camera().panBy(dx, dy, opts)` — relative ops using GSAP's
+  own `"+="` resolution against whatever the property's live value is when the tween starts,
+  the same pattern `moveBy` already used. `duration: 0` on any animation now means an instant
+  set instead of the shortest tween GSAP can manage.
+- `scene.duration(seconds)` declares the length a scene is intended to be, so the linter can
+  warn when an op is scheduled to end past it — a silent overrun otherwise only noticed by
+  the rendered video mysteriously running long.
+- `node.lintIgnore(...checks)` suppresses a named Tier 0 check on that one node — for real
+  intentional cases (an eye deliberately overlapping a head) instead of the check going
+  silent everywhere.
+
+**New lint checks (Tier 0)**
+
+- Tween conflict: two animations writing the same property (`x`/`y`, `rotation`,
+  `scaleX`/`scaleY`, `opacity`) on the same node over an overlapping window used to silently
+  fight, with no error anywhere — the single most common real bug this library produces at
+  scale. Now caught statically, per property/axis.
+- IK reach-clamp: an `ikTo` target past a limb's own `len1 + len2` used to clamp silently
+  (a subtle pop at moderate overage, a rigid "plank arm" that never bends at full overage).
+  Now flagged at build time with the actual overage in pixels.
+- Overlap check now distinguishes containment (one shape mostly inside a much larger one —
+  demoted to `info`) from a real collision between comparably-sized shapes (`warn`) — cuts
+  the noise from projects where nearly every finding was an intentional nested shape.
+
+**Fixes**
+
+- `drawOn()` silently no-op'd on a plain `Group` (there's no single path to reveal) with no
+  warning anywhere — now a static lint check pointing at `.stagger({ effect: "drawOn" })`.
+- `camera.follow()` ending before its scene did caused a visible snap-back to an earlier
+  pan/zoom's held value on every seek past the follow's nominal end — the fix tracks which
+  follow (if any) actually has the latest start time superseded by a real later op, not a
+  fixed `[start, start+duration]` window.
+- Inside a `Film`, a `transition: "fade"` cut's sound now gain-ramps through the same window
+  its visuals already crossfade across (outgoing 1→0, incoming 0→1) instead of both scenes'
+  sound playing at full authored volume through the overlap — an audible pop at the cut, and
+  a moment louder than either scene alone.
+
+**New examples**
+
+- `examples/gallery/ellipse-shapes.ts`, `scheduling.ts`, `particle-streak-follow.ts`.
+
 ## 0.4.0
 
 **New capabilities**

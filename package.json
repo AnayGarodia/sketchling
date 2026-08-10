@@ -1,6 +1,6 @@
 {
   "name": "sketchling",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "A hand-drawn illustration and animation language for LLMs, like Manim but for expressive hand-drawn illustration and motion.",
   "type": "module",
   "license": "MIT",
