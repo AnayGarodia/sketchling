@@ -1,5 +1,5 @@
 import type { SerializedNode, SerializedScene } from "../core/types.js";
-import { bboxOfPoints, bboxOverlapRatio, type BBox } from "../core/geometry.js";
+import { bboxOfPoints, bboxOverlapRatio, DEFAULT_OP_DURATION, type BBox } from "../core/geometry.js";
 
 export interface LintFinding {
   level: "error" | "warn" | "info";
@@ -255,21 +255,6 @@ function lintIKReach(scene: SerializedScene): LintFinding[] {
   return findings;
 }
 
-// Matches renderer.ts's own `op.duration ?? N` fallback per op kind exactly — this has to
-// agree with what actually gets built into a GSAP tween, or the lint would compute windows
-// that don't match the real timeline.
-const DEFAULT_DURATION: Record<string, number> = {
-  moveTo: 0.6,
-  moveBy: 0.6,
-  moveAlong: 1.2,
-  rotateTo: 0.6,
-  rotateBy: 0.6,
-  scaleTo: 0.6,
-  squashTo: 0.3,
-  fadeTo: 0.6,
-  appear: 0.6,
-};
-
 interface PropWindow {
   prop: string;
   start: number;
@@ -297,7 +282,7 @@ function lintTweenConflicts(scene: SerializedScene): LintFinding[] {
     const windows: PropWindow[] = [];
     for (const op of node.animations) {
       const at = op.at ?? 0;
-      const dur = "duration" in op && op.duration != null ? op.duration : DEFAULT_DURATION[op.kind];
+      const dur = "duration" in op && op.duration != null ? op.duration : DEFAULT_OP_DURATION[op.kind];
       if (dur == null) continue; // an op kind this check doesn't model (drawOn, ikTo, springTo, spin3d, morphTo)
       const end = at + dur;
       switch (op.kind) {

@@ -9,6 +9,7 @@ import { Particles } from "./particles.js";
 import { Sound } from "./sound.js";
 import type { RenderLook, SceneBackground, SceneTexture, SerializedNode, SerializedScene } from "./types.js";
 import { hashSeed } from "./geometry.js";
+import { resolveAnimOp, resolveCameraOp } from "./timeref.js";
 
 export interface SceneOptions {
   width?: number;
@@ -43,6 +44,7 @@ export class Scene {
   children: SketchNode[] = [];
   private _camera?: Camera;
   private _declaredDuration?: number;
+  private _labels: Record<string, number> = {};
 
   constructor(opts: SceneOptions = {}) {
     this.width = opts.width ?? 480;
@@ -63,6 +65,19 @@ export class Scene {
    * be — instead of finding out by noticing the rendered video is mysteriously long. */
   duration(seconds: number): this {
     this._declaredDuration = seconds;
+    return this;
+  }
+
+  /** Names a point on the scene's shared timeline, so it can be referenced later as an
+   * `at` value — `"liftoff"`, or `"liftoff+0.4"` for a moment just after it — instead of
+   * repeating (and eventually drifting out of sync with) the same literal second offset
+   * across every node and camera op that needs to land at or near it. Purely a build-time
+   * lookup: resolved to a plain number at `serialize()`, so the renderer and every existing
+   * scene (none of which call this) are completely unaffected. Can be declared in any
+   * order relative to the ops that reference it — resolution happens once, after the whole
+   * scene has finished being authored, not as each call is made. */
+  label(name: string, seconds: number): this {
+    this._labels[name] = seconds;
     return this;
   }
 
@@ -98,6 +113,7 @@ export class Scene {
   }
 
   serialize(): SerializedScene {
+    const labels = this._labels;
     return {
       kind: "scene",
       width: this.width,
@@ -108,14 +124,15 @@ export class Scene {
       seed: this.seed,
       look: this.look,
       texture: this.texture,
-      children: this.children.map(serializeNode),
-      camera: this._camera?.ops ?? [],
+      children: this.children.map((n) => serializeNode(n, labels)),
+      camera: (this._camera?.ops ?? []).map((op) => resolveCameraOp(op, labels)),
       declaredDuration: this._declaredDuration,
     };
   }
 }
 
-function serializeNode(node: SketchNode): SerializedNode {
+function serializeNode(node: SketchNode, labels: Readonly<Record<string, number>>): SerializedNode {
+  const animations = node.animations.map((op) => resolveAnimOp(op, labels));
   if (node instanceof Group) {
     return {
       id: node.id,
@@ -124,9 +141,9 @@ function serializeNode(node: SketchNode): SerializedNode {
       type: "group",
       style: node.style,
       transform: node.transform,
-      animations: node.animations,
+      animations,
       seed: node.seed,
-      children: node.children.map(serializeNode),
+      children: node.children.map((n) => serializeNode(n, labels)),
       depth: node.depth,
     };
   }
@@ -138,7 +155,7 @@ function serializeNode(node: SketchNode): SerializedNode {
       type: "mesh3d",
       style: node.style,
       transform: node.transform,
-      animations: node.animations,
+      animations,
       seed: node.seed,
       mesh3dVertices: node.vertices,
       mesh3dFaces: node.faces,
@@ -149,7 +166,7 @@ function serializeNode(node: SketchNode): SerializedNode {
   if (node instanceof Limb) {
     return {
       id: node.id, label: node.label, lintSuppress: node.lintSuppress, type: "limb", style: node.style, transform: node.transform,
-      animations: node.animations, seed: node.seed,
+      animations, seed: node.seed,
       limbRootX: node.rootX, limbRootY: node.rootY, limbLen1: node.len1, limbLen2: node.len2,
       limbBend: node.bend, limbCapRadius: node.capRadius, limbCapColor: node.capColor,
       limbTargetX: node.targetX, limbTargetY: node.targetY,
@@ -158,14 +175,14 @@ function serializeNode(node: SketchNode): SerializedNode {
   if (node instanceof Connector) {
     return {
       id: node.id, label: node.label, lintSuppress: node.lintSuppress, type: "connector", style: node.style, transform: node.transform,
-      animations: node.animations, seed: node.seed,
+      animations, seed: node.seed,
       connectorAnchorX: node.anchorX, connectorAnchorY: node.anchorY, connectorTargetId: node.targetId,
     };
   }
   if (node instanceof Particles) {
     return {
       id: node.id, label: node.label, lintSuppress: node.lintSuppress, type: "particles", style: node.style, transform: node.transform,
-      animations: node.animations, seed: node.seed,
+      animations, seed: node.seed,
       particlesSpawnX: node.spawnX, particlesSpawnY: node.spawnY, particlesCount: node.count,
       particlesAngle: node.angle, particlesSpread: node.spread,
       particlesSpeedMin: node.speedMin, particlesSpeedMax: node.speedMax,
@@ -177,7 +194,7 @@ function serializeNode(node: SketchNode): SerializedNode {
   if (node instanceof Sound) {
     return {
       id: node.id, label: node.label, lintSuppress: node.lintSuppress, type: "sound", style: node.style, transform: node.transform,
-      animations: node.animations, seed: node.seed,
+      animations, seed: node.seed,
       soundPitch: node.pitch, soundAt: node.at, soundDuration: node.duration,
       soundInstrument: node.instrument, soundVelocity: node.velocity, soundPan: node.pan,
     };
@@ -192,7 +209,7 @@ function serializeNode(node: SketchNode): SerializedNode {
       closed: node.closed,
       style: node.style,
       transform: node.transform,
-      animations: node.animations,
+      animations,
       seed: node.seed,
     };
   }

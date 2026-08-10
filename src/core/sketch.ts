@@ -13,6 +13,7 @@ import { Particles, type ParticleOpts } from "./particles.js";
 import { quickRig, type QuickRig, type QuickRigOpts } from "./quickrig.js";
 import { Sound, type SoundOpts } from "./sound.js";
 import { shade, type ShadeOptions } from "./color.js";
+import { ellipsePoints } from "./geometry.js";
 import type { SketchNode } from "./node.js";
 import type { NodeStyle, Point, Point3 } from "./types.js";
 import type { SceneBackground } from "./types.js";
@@ -29,6 +30,14 @@ export const sketch = {
   },
   blob(cx: number, cy: number, radius: number, style: NodeStyle = {}, vertices = 10): Blob {
     return new Blob(cx, cy, radius, style, vertices);
+  },
+  /** A true, wobble-free ellipse (a circle when rx === ry) — no seeded jitter, no radius
+   * variance, unlike `blob()` (which is deliberately imperfect, see its own doc comment).
+   * For a clean disc — a sun, a head, a gear hub, a glow ring, a star — where a `blob()`'s
+   * ~15% wobble floor (present even at `looseness: 0`) reads as visibly lumpy. `look:
+   * "ink"`'s own render-time sketchiness still applies on top, same as any other stroke. */
+  ellipse(cx: number, cy: number, rx: number, ry: number, style: NodeStyle = {}, vertices = 24): Stroke {
+    return new Stroke(ellipsePoints(cx, cy, rx, ry, vertices), style, true);
   },
   group(children: SketchNode[] = [], style: NodeStyle = {}): Group {
     return new Group(children, style);

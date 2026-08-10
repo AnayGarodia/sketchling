@@ -1,4 +1,4 @@
-import type { CameraOp, TimingOpts } from "./types.js";
+import type { AuthorCameraOp, AuthorTimingOpts } from "./types.js";
 import type { SketchNode } from "./node.js";
 
 /**
@@ -9,10 +9,10 @@ import type { SketchNode } from "./node.js";
  * against the same seek-driven timeline.
  */
 export class Camera {
-  ops: CameraOp[] = [];
+  ops: AuthorCameraOp[] = [];
 
   /** Pans so that scene-space point (x, y) becomes the viewport's center. */
-  panTo(x: number, y: number, opts: TimingOpts = {}): this {
+  panTo(x: number, y: number, opts: AuthorTimingOpts = {}): this {
     this.ops.push({ kind: "panTo", x, y, ...opts });
     return this;
   }
@@ -22,14 +22,14 @@ export class Camera {
    * absolute target by hand from the current center. `panTo(x, y)` still takes an
    * absolute point; this is the relative sibling for when the delta, not the destination,
    * is what you actually mean. */
-  panBy(dx: number, dy: number, opts: TimingOpts = {}): this {
+  panBy(dx: number, dy: number, opts: AuthorTimingOpts = {}): this {
     this.ops.push({ kind: "panBy", dx, dy, ...opts });
     return this;
   }
 
   /** Zooms the viewport by `scale` (1 = authored size, >1 = closer in) around whatever
    * point is currently centered. */
-  zoomTo(scale: number, opts: TimingOpts = {}): this {
+  zoomTo(scale: number, opts: AuthorTimingOpts = {}): this {
     this.ops.push({ kind: "zoomTo", scale, ...opts });
     return this;
   }
@@ -37,7 +37,7 @@ export class Camera {
   /** Keeps the viewport centered on `node` for the duration, tracking its live position
    * (including whatever moveTo/moveBy/moveAlong it's mid-tween through) rather than
    * panning to one fixed point and holding. */
-  follow(node: SketchNode, opts: TimingOpts = {}): this {
+  follow(node: SketchNode, opts: AuthorTimingOpts = {}): this {
     this.ops.push({ kind: "follow", nodeId: node.id, ...opts });
     return this;
   }

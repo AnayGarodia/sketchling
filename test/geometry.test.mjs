@@ -4,6 +4,8 @@ import {
   seededRandom,
   hashSeed,
   blobPoints,
+  ellipsePoints,
+  anchorPoint,
   pathFromPoints,
   bboxOfPoints,
   unionBBox,
@@ -37,6 +39,35 @@ test("blobPoints is deterministic per seed and stays near the requested radius",
     // wobble at looseness 0.3 is ±0.5 * (0.15 + 0.3*0.45) of the radius — well within ±40%
     assert.ok(r > 40 * 0.6 && r < 40 * 1.4, `point radius ${r} strayed too far from 40`);
   }
+});
+
+test("ellipsePoints is a true circle/ellipse with no wobble, unlike blobPoints", () => {
+  const pts = ellipsePoints(100, 100, 40, 40, 16);
+  assert.equal(pts.length, 16);
+  for (const [x, y] of pts) {
+    const r = Math.hypot(x - 100, y - 100);
+    assert.ok(Math.abs(r - 40) < 1e-9, `point radius ${r} must land exactly on 40, no wobble`);
+  }
+  // Non-uniform rx/ry traces an actual ellipse, not just a circle with two radii averaged.
+  const oval = ellipsePoints(0, 0, 50, 20, 4);
+  assert.ok(Math.abs(oval[0][0] - 50) < 1e-9 && Math.abs(oval[0][1]) < 1e-9); // angle 0: (rx, 0)
+  assert.ok(Math.abs(oval[1][0]) < 1e-9 && Math.abs(oval[1][1] - 20) < 1e-9); // angle 90deg: (0, ry)
+});
+
+test("anchorPoint: center is the bbox center (the long-standing default)", () => {
+  const bbox = { minX: 10, minY: 100, maxX: 50, maxY: 140 };
+  assert.deepEqual(anchorPoint(bbox), [30, 120]);
+  assert.deepEqual(anchorPoint(bbox, "center"), [30, 120]);
+});
+
+test("anchorPoint: top/bottom/left/right are that edge's midpoint, not a corner", () => {
+  // Vertically lopsided: a tall box (feet at the low end) — bbox center is nowhere near
+  // either the head (top) or the feet (bottom).
+  const bbox = { minX: 0, minY: -100, maxX: 20, maxY: 10 };
+  assert.deepEqual(anchorPoint(bbox, "top"), [10, -100]);
+  assert.deepEqual(anchorPoint(bbox, "bottom"), [10, 10]);
+  assert.deepEqual(anchorPoint(bbox, "left"), [0, -45]);
+  assert.deepEqual(anchorPoint(bbox, "right"), [20, -45]);
 });
 
 test("pathFromPoints produces a spline by default and straight segments when smooth=false", () => {

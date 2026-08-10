@@ -1,4 +1,4 @@
-import type { Point, SerializedNode } from "./types.js";
+import type { Anchor, Point, SerializedNode } from "./types.js";
 
 /** Deterministic PRNG (mulberry32) so the same seed always draws the same "imperfections". */
 export function seededRandom(seed: number): () => number {
@@ -45,6 +45,70 @@ export function blobPoints(
   }
   return pts;
 }
+
+/**
+ * A true, wobble-free ellipse (circle when rx === ry) — no seeded jitter, no radius
+ * variance floor, unlike `blobPoints`. `Blob` is deliberately imperfect (see its own doc
+ * comment); this is the opposite case, for when the point IS a clean disc — a sun, a head,
+ * a gear hub, a glow ring, a star. Every one of the five independent films built for this
+ * library's own feedback round hand-rolled this exact function under the name
+ * `ellipsePoints` (see e.g. `examples/story/lantern-maker.ts`) because `blob()`'s ~15%
+ * wobble floor never reaches zero even at `looseness: 0` — this promotes that copy-pasted
+ * tribal knowledge into the library itself, so the next agent doesn't have to re-derive it.
+ * `look: "ink"`'s own render-time sketchiness still applies on top, the same as any other
+ * stroke — this only controls the authored geometry, not the hand-drawn line quality.
+ */
+export function ellipsePoints(cx: number, cy: number, rx: number, ry: number, vertices = 24): Point[] {
+  const pts: Point[] = [];
+  for (let i = 0; i < vertices; i++) {
+    const angle = (i / vertices) * Math.PI * 2;
+    pts.push([cx + Math.cos(angle) * rx, cy + Math.sin(angle) * ry]);
+  }
+  return pts;
+}
+
+/** Straight-segment length through `points` — an estimate of drawOn's actual rendered
+ * duration (see polylineLengthDrawDuration below), not the true arc length: the renderer
+ * measures the real on-screen path (Catmull-Rom smoothed, by default) via the browser's own
+ * getTotalLength(), which core can't reach without a DOM. Close enough for the estimate's
+ * actual job — a reasonable `at` for whatever comes next — not a rendering guarantee. */
+export function polylineLength(points: Point[], closed: boolean): number {
+  if (points.length < 2) return 0;
+  let len = 0;
+  for (let i = 1; i < points.length; i++) {
+    len += Math.hypot(points[i][0] - points[i - 1][0], points[i][1] - points[i - 1][1]);
+  }
+  if (closed) len += Math.hypot(points[0][0] - points[points.length - 1][0], points[0][1] - points[points.length - 1][1]);
+  return len;
+}
+
+// Mirrors drawon.ts's own PEN_SPEED_PX_PER_S/MIN_DRAW_DURATION/MAX_DRAW_DURATION constants —
+// duplicated rather than imported since render/ (browser-dependent) can't be imported from
+// core/ (see this file's own module boundary rule), not because the values are allowed to
+// drift. If drawon.ts's pacing ever changes, change this too.
+export function polylineLengthDrawDuration(points: Point[], closed: boolean): number {
+  const len = polylineLength(points, closed);
+  return Math.min(2.2, Math.max(0.45, len / 300));
+}
+
+// Every AnimOp kind's actual `op.duration ?? N` fallback, exactly as renderer.ts (and
+// limb.ts/mesh3d.ts for ikTo/spin3d) apply it — has to agree with what really gets built
+// into a GSAP tween, not a separate guess, since both the tween-conflict linter and
+// SketchNode.endAt below depend on it matching reality.
+export const DEFAULT_OP_DURATION: Record<string, number> = {
+  moveTo: 0.6,
+  moveBy: 0.6,
+  moveAlong: 1.2,
+  rotateTo: 0.6,
+  rotateBy: 0.6,
+  scaleTo: 0.6,
+  squashTo: 0.3,
+  fadeTo: 0.6,
+  appear: 0.6,
+  morphTo: 0.8,
+  ikTo: 0.5,
+  spin3d: 1,
+};
 
 /** Catmull-Rom through `points` rendered as a cubic-bezier SVG path — smooth, not polygonal. */
 export function smoothPathFromPoints(points: Point[], closed: boolean): string {
@@ -95,6 +159,27 @@ export interface BBox {
   minY: number;
   maxX: number;
   maxY: number;
+}
+
+/** The point on `bbox` that moveTo/moveAlong's `anchor` option names — "center" (the
+ * long-standing default) is the bbox's own center; the edge anchors are that edge's
+ * midpoint, not a corner (a "bottom" anchor for a symmetrical character's feet wants the
+ * horizontal center at the lowest y, not the bbox's bottom-left corner). */
+export function anchorPoint(bbox: BBox, anchor: Anchor = "center"): Point {
+  const cx = (bbox.minX + bbox.maxX) / 2;
+  const cy = (bbox.minY + bbox.maxY) / 2;
+  switch (anchor) {
+    case "top":
+      return [cx, bbox.minY];
+    case "bottom":
+      return [cx, bbox.maxY];
+    case "left":
+      return [bbox.minX, cy];
+    case "right":
+      return [bbox.maxX, cy];
+    default:
+      return [cx, cy];
+  }
 }
 
 export function bboxOfPoints(points: Point[]): BBox {

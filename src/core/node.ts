@@ -1,5 +1,5 @@
-import type { AnimOp, NodeStyle, Point, TimingOpts, Transform } from "./types.js";
-import { hashSeed } from "./geometry.js";
+import type { Anchor, AuthorAnimOp, AuthorTimingOpts, NodeStyle, Point, TimeRef, Transform } from "./types.js";
+import { hashSeed, DEFAULT_OP_DURATION, polylineLengthDrawDuration } from "./geometry.js";
 
 let autoId = 0;
 
@@ -10,7 +10,7 @@ export abstract class SketchNode {
   abstract readonly type: "stroke" | "group" | "mesh3d" | "limb" | "connector" | "particles" | "sound";
   style: NodeStyle;
   transform: Transform = { x: 0, y: 0, scale: 1, rotation: 0, opacity: 1 };
-  animations: AnimOp[] = [];
+  animations: AuthorAnimOp[] = [];
   seed: number;
   /** A stable, author-chosen handle for diagnostics and agent tooling. */
   label?: string;
@@ -57,36 +57,71 @@ export abstract class SketchNode {
     return this;
   }
 
+  /** The end time (seconds) of the most recently added animation — `at + duration`, using
+   * the same default duration every op kind actually renders with when none is given
+   * explicitly. Lets a chain build off its own last step (`node.moveTo(...); node.rotateTo(
+   * ..., { at: node.endAt, duration: ... })`) instead of hand-summing durations, the single
+   * biggest source of the "wall of manually computed literals" every independent stress
+   * test of this library hit at real scene length. Throws if the last op's own `at` is
+   * still an unresolved label reference (a string) — labels only resolve to numbers at
+   * Scene.serialize() time, after every node has finished authoring, so there's nothing
+   * concrete to add a duration to yet; use an explicit numeric `at` for a chain you're
+   * building off of, and save labels for referencing a point across different nodes/ops. */
+  get endAt(): number {
+    const last = this.animations[this.animations.length - 1];
+    if (!last) return 0;
+    if (typeof last.at === "string") {
+      throw new Error(
+        `.endAt was read after an animation whose "at" is still the label reference "${last.at}" ` +
+          `— labels resolve to numbers at render time, not while a scene is being built. Use a ` +
+          `plain numeric "at" for the step you're chaining off of.`
+      );
+    }
+    const at = last.at ?? 0;
+    if ("duration" in last && last.duration != null) return at + last.duration;
+    if (last.kind === "drawOn") {
+      const self = this as unknown as { points?: Point[]; closed?: boolean };
+      if (self.points) return at + polylineLengthDrawDuration(self.points, !!self.closed);
+    }
+    return at + (DEFAULT_OP_DURATION[last.kind] ?? 0.6);
+  }
+
   /** Progressive stroke reveal — the line draws itself, like a hand sketching it. Only
    * meaningful on a stroke/loop/blob; on a Group (or any other composite node) there's no
    * single path to reveal, so it has no effect — validate/lint flags this. For a composite,
    * use the Group's own `.stagger({ effect: "drawOn" })` to draw each child in sequence. */
-  drawOn(opts: TimingOpts = {}): this {
+  drawOn(opts: AuthorTimingOpts = {}): this {
     this.animations.push({ kind: "drawOn", ...opts });
     return this;
   }
 
-  appear(opts: TimingOpts = {}): this {
+  appear(opts: AuthorTimingOpts = {}): this {
     this.animations.push({ kind: "appear", ...opts });
     return this;
   }
 
-  moveTo(x: number, y: number, opts: TimingOpts = {}): this {
+  /** Moves this node so that `anchor` (default `"center"`, the bbox center — unchanged
+   * from before this option existed) lands on absolute canvas point (x, y). `"top"` /
+   * `"bottom"` / `"left"` / `"right"` target that edge's own midpoint instead — `anchor:
+   * "bottom"` for a vertically lopsided character (tall body, small feet) places its feet
+   * at (x, y) directly, instead of requiring `y + (bboxCenterY - feetY)` worked out by
+   * hand first. */
+  moveTo(x: number, y: number, opts: AuthorTimingOpts & { anchor?: Anchor } = {}): this {
     this.animations.push({ kind: "moveTo", x, y, ...opts });
     return this;
   }
 
-  moveBy(dx: number, dy: number, opts: TimingOpts = {}): this {
+  moveBy(dx: number, dy: number, opts: AuthorTimingOpts = {}): this {
     this.animations.push({ kind: "moveBy", dx, dy, ...opts });
     return this;
   }
 
-  scaleTo(scale: number, opts: TimingOpts = {}): this {
+  scaleTo(scale: number, opts: AuthorTimingOpts = {}): this {
     this.animations.push({ kind: "scaleTo", scale, ...opts });
     return this;
   }
 
-  rotateTo(degrees: number, opts: TimingOpts = {}): this {
+  rotateTo(degrees: number, opts: AuthorTimingOpts = {}): this {
     this.animations.push({ kind: "rotateTo", degrees, ...opts });
     return this;
   }
@@ -97,12 +132,12 @@ export abstract class SketchNode {
    * a crank turned by the same amount each time regardless of where the last turn left
    * it). `sketch.walk`'s own gait and camera.follow both already resolve live the same
    * way; this gives that same relative composition to a plain rotateBy call. */
-  rotateBy(degrees: number, opts: TimingOpts = {}): this {
+  rotateBy(degrees: number, opts: AuthorTimingOpts = {}): this {
     this.animations.push({ kind: "rotateBy", degrees, ...opts });
     return this;
   }
 
-  fadeTo(opacity: number, opts: TimingOpts = {}): this {
+  fadeTo(opacity: number, opts: AuthorTimingOpts = {}): this {
     this.animations.push({ kind: "fadeTo", opacity, ...opts });
     return this;
   }
@@ -110,8 +145,10 @@ export abstract class SketchNode {
   /** Moves along a curved path through `points` instead of the straight line a chain of
    * moveBy calls would draw — one tween, not several stitched-together linear segments.
    * `rotate: true` orients the node to face the direction of travel (a bird banking into
-   * a turn), off by default (most shapes should stay upright while they travel). */
-  moveAlong(points: Point[], opts: TimingOpts & { rotate?: boolean } = {}): this {
+   * a turn), off by default (most shapes should stay upright while they travel). `anchor`
+   * (default `"center"`) is the same bbox-point option `moveTo` takes — `"bottom"` walks a
+   * lopsided character's feet along `points`, not its bbox center. */
+  moveAlong(points: Point[], opts: AuthorTimingOpts & { rotate?: boolean; anchor?: Anchor } = {}): this {
     const { rotate, ...timing } = opts;
     this.animations.push({ kind: "moveAlong", points, rotate, ...timing });
     return this;
@@ -120,7 +157,7 @@ export abstract class SketchNode {
   /** Non-uniform scale — squash-and-stretch, the basic cartoon weight/impact cue (a body
    * flattens wide on landing, stretches tall mid-jump). Independent scaleX/scaleY, unlike
    * the uniform scaleTo(). */
-  squashTo(scaleX: number, scaleY: number, opts: TimingOpts = {}): this {
+  squashTo(scaleX: number, scaleY: number, opts: AuthorTimingOpts = {}): this {
     this.animations.push({ kind: "squashTo", scaleX, scaleY, ...opts });
     return this;
   }
@@ -130,7 +167,7 @@ export abstract class SketchNode {
    * than a fresh one appearing. Only meaningful on stroke/loop/blob nodes (not Group);
    * disables line-boil on this node, since re-jittering between un-morphed variants would
    * make it visibly snap back mid-animation. */
-  morphTo(points: Point[], opts: TimingOpts = {}): this {
+  morphTo(points: Point[], opts: AuthorTimingOpts = {}): this {
     this.animations.push({ kind: "morphTo", points, ...opts });
     return this;
   }
@@ -160,5 +197,5 @@ export interface SpringOpts {
   offset?: Point;
   stiffness?: number;
   damping?: number;
-  at?: number;
+  at?: TimeRef;
 }

@@ -48,17 +48,45 @@ export interface TimingOpts {
   delay?: number;
 }
 
+/** A point in time: a plain second offset, or a label reference — a name declared with
+ * `scene.label(name, seconds)`, optionally followed by `+N`/`-N` (e.g. `"liftoff+0.4"`) —
+ * resolved to a number at `Scene.serialize()` time. Every fluent animate call accepts this
+ * as `at`; nothing past serialize() (the renderer, the linter, agent validation) ever sees
+ * anything but a resolved number — `AnimOp`/`CameraOp` (the wire format) are untouched. */
+export type TimeRef = number | string;
+
+/** TimingOpts with `at` widened to TimeRef — what every fluent animate method's `opts`
+ * parameter actually accepts. */
+export interface AuthorTimingOpts {
+  at?: TimeRef;
+  duration?: number;
+  ease?: string;
+  delay?: number;
+}
+
+/** Which point on a node's own bounding box `moveTo`/`moveAlong` place at the target —
+ * default `"center"` (the existing, unchanged behavior) targets the bbox center, which for
+ * a vertically lopsided shape (a tall body over small feet) is nowhere near the point an
+ * author actually means to place. `"bottom"` targets the bbox's own bottom-center — the
+ * "feet" case — without the caller having to work out `intendedY - bboxCenterY` by hand. */
+export type Anchor = "center" | "top" | "bottom" | "left" | "right";
+
+// Distributes over the union: for each member, swaps just its `at` field to TimeRef,
+// keeping every kind-specific field and discriminant exactly as AnimOp/CameraOp already
+// declare them. Stays in sync automatically if those unions ever change — no duplication.
+type LoosenAt<U> = U extends unknown ? Omit<U, "at"> & { at?: TimeRef } : never;
+
 export type AnimOp =
   | ({ kind: "drawOn" } & TimingOpts)
   | ({ kind: "appear" } & TimingOpts)
-  | ({ kind: "moveTo"; x: number; y: number } & TimingOpts)
+  | ({ kind: "moveTo"; x: number; y: number; anchor?: Anchor } & TimingOpts)
   | ({ kind: "moveBy"; dx: number; dy: number } & TimingOpts)
   | ({ kind: "scaleTo"; scale: number } & TimingOpts)
   | ({ kind: "rotateTo"; degrees: number } & TimingOpts)
   | ({ kind: "rotateBy"; degrees: number } & TimingOpts)
   | ({ kind: "fadeTo"; opacity: number } & TimingOpts)
   | ({ kind: "morphTo"; points: Point[] } & TimingOpts)
-  | ({ kind: "moveAlong"; points: Point[]; rotate?: boolean } & TimingOpts)
+  | ({ kind: "moveAlong"; points: Point[]; rotate?: boolean; anchor?: Anchor } & TimingOpts)
   | ({ kind: "squashTo"; scaleX: number; scaleY: number } & TimingOpts)
   // Absolute-target 3D rotation, in degrees (matching rotateTo's convention — converted
   // to radians in the renderer, not here). Independent of `rotateTo`, which still spins
@@ -79,6 +107,11 @@ export type AnimOp =
   // stationary — give the driver its own tween if it needs to spring-drive an accessory.
   | { kind: "springTo"; driverId: string; offsetX: number; offsetY: number; stiffness: number; damping: number; at: number };
 
+/** What SketchNode's fluent methods actually accept and push onto `.animations` — same
+ * shape as AnimOp, `at` widened to TimeRef. Resolved back down to plain AnimOp (numbers
+ * only) by Scene.serialize(); the renderer/linter/agent-validation never see this type. */
+export type AuthorAnimOp = LoosenAt<AnimOp>;
+
 // A scene's own viewport, animated independently of any node — pans/zooms the whole
 // canvas, or tracks a node's live position. "follow" resolves to the target node's
 // authored bbox center plus its current animated offset, read live off the DOM at
@@ -89,6 +122,10 @@ export type CameraOp =
   | ({ kind: "panBy"; dx: number; dy: number } & TimingOpts)
   | ({ kind: "zoomTo"; scale: number } & TimingOpts)
   | ({ kind: "follow"; nodeId: string } & TimingOpts);
+
+/** What Camera's fluent methods actually accept and push onto `.ops` — same shape as
+ * CameraOp, `at` widened to TimeRef. Resolved back to plain CameraOp by Scene.serialize(). */
+export type AuthorCameraOp = LoosenAt<CameraOp>;
 
 export interface Mesh3DFaceData {
   indices: number[];

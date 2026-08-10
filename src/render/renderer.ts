@@ -3,7 +3,7 @@ import gsap from "gsap";
 import { MorphSVGPlugin } from "gsap/MorphSVGPlugin";
 import { MotionPathPlugin } from "gsap/MotionPathPlugin";
 import type { Renderable, SerializedFilm, SerializedNode, SerializedScene } from "../core/types.js";
-import { pathFromPoints } from "../core/geometry.js";
+import { pathFromPoints, anchorPoint } from "../core/geometry.js";
 import { mountLit3D } from "./renderer3d.js";
 import { roughOptionsFor, strokeWidthOf, effectiveFillStyle } from "./style.js";
 import {
@@ -492,8 +492,7 @@ function applyAnimations(g: SVGGElement, node: SerializedNode, ctx: BuildContext
       }
       case "moveTo": {
         const bbox = computeNodeBBox(node);
-        const refX = bbox ? (bbox.minX + bbox.maxX) / 2 : 0;
-        const refY = bbox ? (bbox.minY + bbox.maxY) / 2 : 0;
+        const [refX, refY] = bbox ? anchorPoint(bbox, op.anchor) : [0, 0];
         tl.to(g, { x: op.x - refX, y: op.y - refY, duration: op.duration ?? 0.6, ease: op.ease ?? "power2.out" }, at);
         break;
       }
@@ -557,8 +556,7 @@ function applyAnimations(g: SVGGElement, node: SerializedNode, ctx: BuildContext
         // does, which is an *offset* from the node's own authored position, not an
         // absolute one. Re-anchor each point the same way moveTo re-anchors its target.
         const bbox = computeNodeBBox(node);
-        const refX = bbox ? (bbox.minX + bbox.maxX) / 2 : 0;
-        const refY = bbox ? (bbox.minY + bbox.maxY) / 2 : 0;
+        const [refX, refY] = bbox ? anchorPoint(bbox, op.anchor) : [0, 0];
         const path = op.points.map(([x, y]) => ({ x: x - refX, y: y - refY }));
         tl.to(
           g,
