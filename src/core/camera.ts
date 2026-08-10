@@ -17,6 +17,16 @@ export class Camera {
     return this;
   }
 
+  /** Pans by a scene-space delta (dx, dy) from wherever the camera's center actually is
+   * when the tween starts — a small drift, a repeated nudge — instead of computing an
+   * absolute target by hand from the current center. `panTo(x, y)` still takes an
+   * absolute point; this is the relative sibling for when the delta, not the destination,
+   * is what you actually mean. */
+  panBy(dx: number, dy: number, opts: TimingOpts = {}): this {
+    this.ops.push({ kind: "panBy", dx, dy, ...opts });
+    return this;
+  }
+
   /** Zooms the viewport by `scale` (1 = authored size, >1 = closer in) around whatever
    * point is currently centered. */
   zoomTo(scale: number, opts: TimingOpts = {}): this {

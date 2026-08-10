@@ -524,6 +524,14 @@ function applyAnimations(g: SVGGElement, node: SerializedNode, ctx: BuildContext
       case "rotateTo":
         tl.to(g, { rotation: op.degrees, duration: op.duration ?? 0.6, ease: op.ease ?? "power2.out" }, at);
         break;
+      case "rotateBy":
+        // GSAP's own "+=" relative-value syntax resolves against whatever rotation is
+        // actually live when this tween starts playing (mid-chain through an earlier
+        // rotateTo/rotateBy included) — the same mechanism moveBy's "+=" already relies on
+        // for position, so a repeated relative turn composes correctly without computing
+        // an absolute target from the previous op's own end value by hand.
+        tl.to(g, { rotation: `+=${op.degrees}`, duration: op.duration ?? 0.6, ease: op.ease ?? "power2.out" }, at);
+        break;
       case "fadeTo":
         tl.to(g, { opacity: op.opacity, duration: op.duration ?? 0.6, ease: op.ease ?? "power2.out" }, at);
         break;

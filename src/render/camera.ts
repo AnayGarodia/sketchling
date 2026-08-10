@@ -47,12 +47,12 @@ export function applyCameraLayers(
 
   interface FollowWindow {
     start: number;
-    end: number;
     targetG: SVGGElement | null;
     anchorX: number;
     anchorY: number;
   }
   const followWindows: FollowWindow[] = [];
+  const otherOpStarts: number[] = [];
 
   for (const op of camOps) {
     const at = op.at ?? 0;
@@ -60,8 +60,17 @@ export function applyCameraLayers(
 
     if (op.kind === "panTo") {
       tl.to(camState, { cx: op.x, cy: op.y, duration, ease: op.ease ?? "sine.inOut", onUpdate: apply }, at);
+      otherOpStarts.push(at);
+    } else if (op.kind === "panBy") {
+      // Same "+=" relative-value trick rotateBy/moveBy use — resolves against wherever
+      // camState actually is when this tween starts (an earlier panTo's target, mid-follow,
+      // whatever), so a repeated small nudge doesn't need its absolute destination computed
+      // by hand from the current center the way panTo alone would require.
+      tl.to(camState, { cx: `+=${op.dx}`, cy: `+=${op.dy}`, duration, ease: op.ease ?? "sine.inOut", onUpdate: apply }, at);
+      otherOpStarts.push(at);
     } else if (op.kind === "zoomTo") {
       tl.to(camState, { zoom: op.scale, duration, ease: op.ease ?? "sine.inOut", onUpdate: apply }, at);
+      otherOpStarts.push(at);
     } else {
       const targetNode = findSerializedNodeById(scene.children, op.nodeId);
       const bbox = targetNode ? computeNodeBBox(targetNode) : null;
@@ -70,16 +79,39 @@ export function applyCameraLayers(
       // data-id is unique scene-wide, so searching the whole container (not just one
       // layer's group) finds the target regardless of which depth plane it lives on.
       const targetG = container.querySelector(`[data-id="${op.nodeId}"]`) as SVGGElement | null;
-      followWindows.push({ start: at, end: at + duration, targetG, anchorX, anchorY });
+      followWindows.push({ start: at, targetG, anchorX, anchorY });
     }
   }
 
   return (t: number) => {
-    const active = followWindows.find((w) => t >= w.start && t <= w.end);
-    if (!active) return;
-    const offset = liveOffsetOf(active.targetG);
-    camState.cx = active.anchorX + offset.x;
-    camState.cy = active.anchorY + offset.y;
+    // Which follow (if any) is "current" at t: the one with the latest start <= t. Unlike
+    // the old `t >= start && t <= start+duration` window check, this isn't bounded by its
+    // own duration — a follow keeps winning past its nominal end until something else
+    // (a later panTo/zoomTo, or another follow) actually takes over. That matters because
+    // this callback runs after tl.seek() has already resolved every real GSAP tween on
+    // camState, including an EARLIER panTo — which (like any completed tween) re-asserts
+    // its own held end value on every later seek. Previously, once a follow's window ended,
+    // this callback did nothing, so that earlier panTo's reassertion went uncontested and
+    // the camera visibly snapped back to it — a real bug, not the documented "give follow a
+    // duration covering the whole tracked span" tradeoff it was mistaken for (the Lantern
+    // Maker follow-ups hit this despite AGENTS.md already warning about it). Deliberately
+    // re-reads the target's LIVE position every call rather than freezing a captured value
+    // at end-of-window: since the target's own moveTo/moveBy/moveAlong is itself a real
+    // GSAP tween that already holds its end value for any later seek, this stays exact and
+    // determinism-safe for an arbitrary or non-monotonic seek (contact-sheet, `--at`) the
+    // same way every other op here already is — no historical state to get wrong.
+    let currentFollow: FollowWindow | null = null;
+    for (const w of followWindows) {
+      if (w.start > t) continue;
+      if (!currentFollow || w.start > currentFollow.start) currentFollow = w;
+    }
+    if (!currentFollow) return;
+    for (const at of otherOpStarts) {
+      if (at > currentFollow.start && at <= t) return; // a later pan/zoom has taken over
+    }
+    const offset = liveOffsetOf(currentFollow.targetG);
+    camState.cx = currentFollow.anchorX + offset.x;
+    camState.cy = currentFollow.anchorY + offset.y;
     apply();
   };
 }

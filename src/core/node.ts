@@ -14,6 +14,7 @@ export abstract class SketchNode {
   seed: number;
   /** A stable, author-chosen handle for diagnostics and agent tooling. */
   label?: string;
+  lintSuppress?: string[];
 
   constructor(style: NodeStyle = {}, id?: string) {
     this.id = id ?? `n${autoId++}`;
@@ -40,6 +41,15 @@ export abstract class SketchNode {
     return this;
   }
 
+  /** Silences a specific structural lint check on this node — e.g. an intentionally
+   * heavy overlap (layered mechanical rings, a detail meant to sit flush against its
+   * container) that isn't the "eye in a head" containment shape lint already recognizes
+   * as normal. Check names: "overlap". Stacks across calls; each call adds, none remove. */
+  lintIgnore(...checks: string[]): this {
+    this.lintSuppress = [...(this.lintSuppress ?? []), ...checks];
+    return this;
+  }
+
   /** Anchors rotateTo/scaleTo at an absolute canvas point instead of the shape's own
    * center — e.g. a raised arm should swing from the shoulder, not its own midpoint. */
   pivotAt(x: number, y: number): this {
@@ -47,7 +57,10 @@ export abstract class SketchNode {
     return this;
   }
 
-  /** Progressive stroke reveal — the line draws itself, like a hand sketching it. */
+  /** Progressive stroke reveal — the line draws itself, like a hand sketching it. Only
+   * meaningful on a stroke/loop/blob; on a Group (or any other composite node) there's no
+   * single path to reveal, so it has no effect — validate/lint flags this. For a composite,
+   * use the Group's own `.stagger({ effect: "drawOn" })` to draw each child in sequence. */
   drawOn(opts: TimingOpts = {}): this {
     this.animations.push({ kind: "drawOn", ...opts });
     return this;
@@ -75,6 +88,17 @@ export abstract class SketchNode {
 
   rotateTo(degrees: number, opts: TimingOpts = {}): this {
     this.animations.push({ kind: "rotateTo", degrees, ...opts });
+    return this;
+  }
+
+  /** Rotates relative to whatever rotation this node is actually at when the tween starts
+   * playing — including mid-tween through an earlier rotateTo/rotateBy — instead of an
+   * absolute target you'd otherwise have to compute by hand (a repeated wind-up gesture,
+   * a crank turned by the same amount each time regardless of where the last turn left
+   * it). `sketch.walk`'s own gait and camera.follow both already resolve live the same
+   * way; this gives that same relative composition to a plain rotateBy call. */
+  rotateBy(degrees: number, opts: TimingOpts = {}): this {
+    this.animations.push({ kind: "rotateBy", degrees, ...opts });
     return this;
   }
 

@@ -42,6 +42,7 @@ export class Scene {
   texture?: SceneTexture;
   children: SketchNode[] = [];
   private _camera?: Camera;
+  private _declaredDuration?: number;
 
   constructor(opts: SceneOptions = {}) {
     this.width = opts.width ?? 480;
@@ -52,6 +53,17 @@ export class Scene {
     this.seed = typeof opts.seed === "string" ? hashSeed(opts.seed) : opts.seed ?? 1;
     this.look = opts.look ?? "ink";
     this.texture = opts.texture;
+  }
+
+  /** Declares the scene's intended length in seconds — purely a lint-time assertion, not a
+   * hard cap: the renderer still derives the actual length from whatever the last-ending op
+   * resolves to, the same as a scene with no declared duration at all. What it buys you is a
+   * warning the moment something (an extrapolated off-screen element, a chain of `moveBy`s
+   * that runs longer than intended) is scheduled past the length the scene itself claims to
+   * be — instead of finding out by noticing the rendered video is mysteriously long. */
+  duration(seconds: number): this {
+    this._declaredDuration = seconds;
+    return this;
   }
 
   add(node: SketchNode): SketchNode {
@@ -98,6 +110,7 @@ export class Scene {
       texture: this.texture,
       children: this.children.map(serializeNode),
       camera: this._camera?.ops ?? [],
+      declaredDuration: this._declaredDuration,
     };
   }
 }
@@ -107,6 +120,7 @@ function serializeNode(node: SketchNode): SerializedNode {
     return {
       id: node.id,
       label: node.label,
+      lintSuppress: node.lintSuppress,
       type: "group",
       style: node.style,
       transform: node.transform,
@@ -120,6 +134,7 @@ function serializeNode(node: SketchNode): SerializedNode {
     return {
       id: node.id,
       label: node.label,
+      lintSuppress: node.lintSuppress,
       type: "mesh3d",
       style: node.style,
       transform: node.transform,
@@ -133,7 +148,7 @@ function serializeNode(node: SketchNode): SerializedNode {
   }
   if (node instanceof Limb) {
     return {
-      id: node.id, label: node.label, type: "limb", style: node.style, transform: node.transform,
+      id: node.id, label: node.label, lintSuppress: node.lintSuppress, type: "limb", style: node.style, transform: node.transform,
       animations: node.animations, seed: node.seed,
       limbRootX: node.rootX, limbRootY: node.rootY, limbLen1: node.len1, limbLen2: node.len2,
       limbBend: node.bend, limbCapRadius: node.capRadius, limbCapColor: node.capColor,
@@ -142,14 +157,14 @@ function serializeNode(node: SketchNode): SerializedNode {
   }
   if (node instanceof Connector) {
     return {
-      id: node.id, label: node.label, type: "connector", style: node.style, transform: node.transform,
+      id: node.id, label: node.label, lintSuppress: node.lintSuppress, type: "connector", style: node.style, transform: node.transform,
       animations: node.animations, seed: node.seed,
       connectorAnchorX: node.anchorX, connectorAnchorY: node.anchorY, connectorTargetId: node.targetId,
     };
   }
   if (node instanceof Particles) {
     return {
-      id: node.id, label: node.label, type: "particles", style: node.style, transform: node.transform,
+      id: node.id, label: node.label, lintSuppress: node.lintSuppress, type: "particles", style: node.style, transform: node.transform,
       animations: node.animations, seed: node.seed,
       particlesSpawnX: node.spawnX, particlesSpawnY: node.spawnY, particlesCount: node.count,
       particlesAngle: node.angle, particlesSpread: node.spread,
@@ -161,7 +176,7 @@ function serializeNode(node: SketchNode): SerializedNode {
   }
   if (node instanceof Sound) {
     return {
-      id: node.id, label: node.label, type: "sound", style: node.style, transform: node.transform,
+      id: node.id, label: node.label, lintSuppress: node.lintSuppress, type: "sound", style: node.style, transform: node.transform,
       animations: node.animations, seed: node.seed,
       soundPitch: node.pitch, soundAt: node.at, soundDuration: node.duration,
       soundInstrument: node.instrument, soundVelocity: node.velocity, soundPan: node.pan,
@@ -171,6 +186,7 @@ function serializeNode(node: SketchNode): SerializedNode {
     return {
       id: node.id,
       label: node.label,
+      lintSuppress: node.lintSuppress,
       type: "stroke",
       points: node.points,
       closed: node.closed,

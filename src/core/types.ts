@@ -55,6 +55,7 @@ export type AnimOp =
   | ({ kind: "moveBy"; dx: number; dy: number } & TimingOpts)
   | ({ kind: "scaleTo"; scale: number } & TimingOpts)
   | ({ kind: "rotateTo"; degrees: number } & TimingOpts)
+  | ({ kind: "rotateBy"; degrees: number } & TimingOpts)
   | ({ kind: "fadeTo"; opacity: number } & TimingOpts)
   | ({ kind: "morphTo"; points: Point[] } & TimingOpts)
   | ({ kind: "moveAlong"; points: Point[]; rotate?: boolean } & TimingOpts)
@@ -85,6 +86,7 @@ export type AnimOp =
 // mid-tween.
 export type CameraOp =
   | ({ kind: "panTo"; x: number; y: number } & TimingOpts)
+  | ({ kind: "panBy"; dx: number; dy: number } & TimingOpts)
   | ({ kind: "zoomTo"; scale: number } & TimingOpts)
   | ({ kind: "follow"; nodeId: string } & TimingOpts);
 
@@ -97,6 +99,8 @@ export interface SerializedNode {
   id: string;
   /** Optional author-chosen diagnostic handle, set with node.named("..."). */
   label?: string;
+  /** Lint check names silenced on this node specifically, set with node.lintIgnore("..."). */
+  lintSuppress?: string[];
   // No "blob" member: a Blob is a Stroke subclass whose outline is baked at construction,
   // so it serializes as a plain closed stroke (see node.ts's own type comment).
   type: "stroke" | "group" | "mesh3d" | "limb" | "connector" | "particles" | "sound";
@@ -250,6 +254,11 @@ export interface SerializedScene {
   texture?: SceneTexture;
   children: SerializedNode[];
   camera: CameraOp[];
+  /** Author-declared intended length in seconds, set with scene.duration(n). The renderer
+   * doesn't use this to truncate anything — actual scene length is still whatever the
+   * last-ending op resolves to, same as always. It's read-only by the linter, to warn when
+   * something is scheduled to run past the length the scene itself claims to be. */
+  declaredDuration?: number;
 }
 
 export type FilmTransition = "cut" | "fade";

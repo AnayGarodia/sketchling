@@ -118,6 +118,17 @@ function validateScene(scene: SerializedScene, sceneIndex: number, findings: Age
         findings.push({ level: "error", code: "invalid-timing", message: `${scenePrefix}${ref} has a non-finite or negative animation time.`, nodeId: node.id, nodeLabel: node.label });
       }
     }
+    // drawOn only has a target to reveal against on a "stroke" node (buildNode only sets
+    // `draw` there) — on every other node type it's a silent no-op today. A Group is the
+    // case someone actually hits: it reads as "draw this whole composite shape in", but
+    // there's no single path to reveal, so nothing happens. Group already has the right
+    // primitive for that intent (`stagger`), so point there instead of just failing quietly.
+    for (const op of node.animations) {
+      if (op.kind === "drawOn" && node.type !== "stroke") {
+        const hint = node.type === "group" ? ` Use .stagger({ effect: "drawOn" }) to draw each child in sequence.` : "";
+        findings.push({ level: "warn", code: "noop-drawon", message: `${scenePrefix}${ref} calls drawOn(), which has no effect on a ${node.type} node.${hint}`, nodeId: node.id, nodeLabel: node.label });
+      }
+    }
     if ((scene.look === "lit3d" || scene.look === "toon3d")) {
       if (node.type !== "mesh3d" && node.type !== "group") {
         findings.push({ level: "warn", code: "unsupported-3d-node", message: `${scenePrefix}${ref} does not render under ${scene.look}.`, nodeId: node.id, nodeLabel: node.label });
