@@ -44,7 +44,9 @@ export abstract class SketchNode {
   /** Silences a specific structural lint check on this node — e.g. an intentionally
    * heavy overlap (layered mechanical rings, a detail meant to sit flush against its
    * container) that isn't the "eye in a head" containment shape lint already recognizes
-   * as normal. Check names: "overlap". Stacks across calls; each call adds, none remove. */
+   * as normal, or a deliberately point-like stroke (a letter's dot glyph) the degenerate-
+   * shape check would otherwise flag. Check names: "overlap", "degenerate". Stacks across
+   * calls; each call adds, none remove. */
   lintIgnore(...checks: string[]): this {
     this.lintSuppress = [...(this.lintSuppress ?? []), ...checks];
     return this;
