@@ -82,15 +82,21 @@ export interface SoundEvent {
   instrument: string;
   velocity: number;
   pan: number;
-  // A linear gain ramp layered UNDER each voice's own note-shape envelope, in the same
+  // Linear gain ramps layered UNDER each voice's own note-shape envelope, in the same
   // absolute-seconds space as `at` — set by a Film crossfade (see mountFilm) so an outgoing
   // scene's sound fades out, and an incoming scene's fades in, over the same window the
   // visual transition already crossfades across, instead of both playing at full authored
   // volume through the overlap (audible pops/an overlap louder than either scene alone).
-  // Undefined for a plain Scene render, or a Film's "cut" transitions, or a fade transition's
-  // very first/last entry (nothing on that side to fade against) — every one of those keeps
-  // today's exact flat-gain behavior.
-  gainRamp?: { at: number; duration: number; from: number; to: number };
+  // Separate fields, not one shared ramp: a middle entry in a 3+ scene film is BOTH the
+  // incoming half of one crossfade and the outgoing half of the next, so both need to survive
+  // on the same event — fadeIn.at is always this entry's own enterAt and fadeOut.at is always
+  // the NEXT entry's enterAt, which is strictly later, so voiceBus can schedule them in that
+  // fixed chronological order with no risk of an out-of-order automation call. Undefined for a
+  // plain Scene render, a Film's "cut" transitions, or a fade transition's very first/last
+  // entry (nothing on that side to fade against) — every one of those keeps today's exact
+  // flat-gain behavior.
+  fadeIn?: { at: number; duration: number };
+  fadeOut?: { at: number; duration: number };
 }
 
 /** Everything one scene build threads through its node builders — one shared bag instead

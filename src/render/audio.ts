@@ -58,22 +58,31 @@ function scheduleVoice(ctx: BaseAudioContext, destination: AudioNode, event: Sou
 
 /** Every voice routes through its own panner + gain (velocity) before the shared master
  * bus, so per-note pan/velocity stay independent of whatever instrument produced the tone.
- * A Film crossfade's gainRamp (see mountFilm) layers an extra gain node UNDER the panner,
- * before whatever note-shape envelope the calling voice schedules on the node `out` points
- * to — the crossfade fade and each voice's own attack/decay/release compose independently
- * instead of fighting over the same automation. */
+ * A Film crossfade's fadeIn/fadeOut (see mountFilm) layer an extra gain node UNDER the
+ * panner, before whatever note-shape envelope the calling voice schedules on the node `out`
+ * points to — the crossfade and each voice's own attack/decay/release compose independently
+ * instead of fighting over the same automation. Both can be present on the same event (a
+ * middle entry in a 3+ scene film is the incoming half of one crossfade and the outgoing
+ * half of the next) — scheduled on the one gain node in fixed chronological order, since
+ * fadeIn.at (this entry's own enterAt) is always earlier than fadeOut.at (the next entry's
+ * enterAt). */
 function voiceBus(ctx: BaseAudioContext, destination: AudioNode, event: SoundEvent): { out: AudioNode; peak: number } {
   const panner = ctx.createStereoPanner();
   panner.pan.value = event.pan;
   panner.connect(destination);
 
   let out: AudioNode = panner;
-  if (event.gainRamp) {
-    const { at, duration, from, to } = event.gainRamp;
+  if (event.fadeIn || event.fadeOut) {
     const crossfade = ctx.createGain();
     crossfade.connect(panner);
-    crossfade.gain.setValueAtTime(from, at);
-    crossfade.gain.linearRampToValueAtTime(to, at + duration);
+    if (event.fadeIn) {
+      crossfade.gain.setValueAtTime(0, event.fadeIn.at);
+      crossfade.gain.linearRampToValueAtTime(1, event.fadeIn.at + event.fadeIn.duration);
+    }
+    if (event.fadeOut) {
+      crossfade.gain.setValueAtTime(1, event.fadeOut.at);
+      crossfade.gain.linearRampToValueAtTime(0, event.fadeOut.at + event.fadeOut.duration);
+    }
     out = crossfade;
   }
 

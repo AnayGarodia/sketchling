@@ -219,9 +219,11 @@ export function mountFilm(film: SerializedFilm, container: HTMLElement): MountRe
     if (isFade) {
       masterTl.fromTo(wrapper, { opacity: 0 }, { opacity: 1, duration: fadeDur, ease: "sine.inOut" }, enterAt);
       // Incoming half of the crossfade: this entry's own sound ramps in over the same
-      // [enterAt, enterAt+fadeDur] window the visual fade-in already spans.
+      // [enterAt, enterAt+fadeDur] window the visual fade-in already spans. Merged onto
+      // whatever's already on the event (spread first), not overwritten — a middle entry's
+      // sound still needs to keep this fadeIn when the NEXT entry later attaches its fadeOut.
       for (let i = entrySoundStart; i < entrySoundEnd; i++) {
-        soundEvents[i] = { ...soundEvents[i], gainRamp: { at: enterAt, duration: fadeDur, from: 0, to: 1 } };
+        soundEvents[i] = { ...soundEvents[i], fadeIn: { at: enterAt, duration: fadeDur } };
       }
     } else {
       masterTl.set(wrapper, { opacity: 1 }, enterAt);
@@ -231,11 +233,12 @@ export function mountFilm(film: SerializedFilm, container: HTMLElement): MountRe
       const hideAt = enterAt + fadeDur;
       masterTl.set(prevWrapper, { opacity: 0 }, hideAt);
       // Outgoing half: only for an actual fade (fadeDur > 0) — a cut transition keeps
-      // today's flat-gain behavior on both sides, per SoundEvent.gainRamp's own doc comment.
+      // today's flat-gain behavior on both sides, per SoundEvent's own doc comment. Merged
+      // (spread first) so a middle entry's own fadeIn from its own iteration above survives.
       if (isFade && prevEntrySoundRange) {
         const [prevStart, prevEnd] = prevEntrySoundRange;
         for (let i = prevStart; i < prevEnd; i++) {
-          soundEvents[i] = { ...soundEvents[i], gainRamp: { at: enterAt, duration: fadeDur, from: 1, to: 0 } };
+          soundEvents[i] = { ...soundEvents[i], fadeOut: { at: enterAt, duration: fadeDur } };
         }
       }
     }
