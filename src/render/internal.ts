@@ -82,6 +82,15 @@ export interface SoundEvent {
   instrument: string;
   velocity: number;
   pan: number;
+  // A linear gain ramp layered UNDER each voice's own note-shape envelope, in the same
+  // absolute-seconds space as `at` — set by a Film crossfade (see mountFilm) so an outgoing
+  // scene's sound fades out, and an incoming scene's fades in, over the same window the
+  // visual transition already crossfades across, instead of both playing at full authored
+  // volume through the overlap (audible pops/an overlap louder than either scene alone).
+  // Undefined for a plain Scene render, or a Film's "cut" transitions, or a fade transition's
+  // very first/last entry (nothing on that side to fade against) — every one of those keeps
+  // today's exact flat-gain behavior.
+  gainRamp?: { at: number; duration: number; from: number; to: number };
 }
 
 /** Everything one scene build threads through its node builders — one shared bag instead

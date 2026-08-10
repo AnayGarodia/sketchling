@@ -57,15 +57,30 @@ function scheduleVoice(ctx: BaseAudioContext, destination: AudioNode, event: Sou
 }
 
 /** Every voice routes through its own panner + gain (velocity) before the shared master
- * bus, so per-note pan/velocity stay independent of whatever instrument produced the tone. */
+ * bus, so per-note pan/velocity stay independent of whatever instrument produced the tone.
+ * A Film crossfade's gainRamp (see mountFilm) layers an extra gain node UNDER the panner,
+ * before whatever note-shape envelope the calling voice schedules on the node `out` points
+ * to — the crossfade fade and each voice's own attack/decay/release compose independently
+ * instead of fighting over the same automation. */
 function voiceBus(ctx: BaseAudioContext, destination: AudioNode, event: SoundEvent): { out: AudioNode; peak: number } {
   const panner = ctx.createStereoPanner();
   panner.pan.value = event.pan;
   panner.connect(destination);
+
+  let out: AudioNode = panner;
+  if (event.gainRamp) {
+    const { at, duration, from, to } = event.gainRamp;
+    const crossfade = ctx.createGain();
+    crossfade.connect(panner);
+    crossfade.gain.setValueAtTime(from, at);
+    crossfade.gain.linearRampToValueAtTime(to, at + duration);
+    out = crossfade;
+  }
+
   // Velocity scales peak loudness, not just a linear multiply — human loudness perception
   // (and MIDI convention) is closer to velocity^2 than velocity itself.
   const peak = 0.05 + 0.35 * event.velocity * event.velocity;
-  return { out: panner, peak };
+  return { out, peak };
 }
 
 // A synthesized approximation of a plucked/struck melodic tone — a fast attack, exponential

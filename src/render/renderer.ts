@@ -143,6 +143,11 @@ export function mountFilm(film: SerializedFilm, container: HTMLElement): MountRe
 
   let cursor = 0;
   let prevWrapper: SVGGElement | null = null;
+  // Index range into `soundEvents` for whichever entry is currently `prevWrapper` — lets the
+  // NEXT entry's own iteration reach back and attach an outgoing gainRamp once it knows
+  // whether it itself is a fade (and therefore what window the crossfade actually spans),
+  // without re-walking the whole array to find them.
+  let prevEntrySoundRange: [number, number] | null = null;
 
   film.entries.forEach((entry) => {
     const { scene, transition, transitionDuration, hold } = entry;
@@ -207,10 +212,17 @@ export function mountFilm(film: SerializedFilm, container: HTMLElement): MountRe
     // Same offset its visual timeline already gets via masterTl.add(sceneTl, enterAt) above
     // — a sound authored at `at: 2` in a scene entering the film at enterAt=5 actually plays
     // at master time 7, exactly like a moveTo at that scene-local time actually happens then.
+    const entrySoundStart = soundEvents.length;
     for (const s of entrySoundEvents) soundEvents.push({ ...s, at: s.at + enterAt });
+    const entrySoundEnd = soundEvents.length;
 
     if (isFade) {
       masterTl.fromTo(wrapper, { opacity: 0 }, { opacity: 1, duration: fadeDur, ease: "sine.inOut" }, enterAt);
+      // Incoming half of the crossfade: this entry's own sound ramps in over the same
+      // [enterAt, enterAt+fadeDur] window the visual fade-in already spans.
+      for (let i = entrySoundStart; i < entrySoundEnd; i++) {
+        soundEvents[i] = { ...soundEvents[i], gainRamp: { at: enterAt, duration: fadeDur, from: 0, to: 1 } };
+      }
     } else {
       masterTl.set(wrapper, { opacity: 1 }, enterAt);
     }
@@ -218,10 +230,19 @@ export function mountFilm(film: SerializedFilm, container: HTMLElement): MountRe
     if (prevWrapper) {
       const hideAt = enterAt + fadeDur;
       masterTl.set(prevWrapper, { opacity: 0 }, hideAt);
+      // Outgoing half: only for an actual fade (fadeDur > 0) — a cut transition keeps
+      // today's flat-gain behavior on both sides, per SoundEvent.gainRamp's own doc comment.
+      if (isFade && prevEntrySoundRange) {
+        const [prevStart, prevEnd] = prevEntrySoundRange;
+        for (let i = prevStart; i < prevEnd; i++) {
+          soundEvents[i] = { ...soundEvents[i], gainRamp: { at: enterAt, duration: fadeDur, from: 1, to: 0 } };
+        }
+      }
     }
 
     cursor = enterAt + contentDuration + hold;
     prevWrapper = wrapper;
+    prevEntrySoundRange = [entrySoundStart, entrySoundEnd];
   });
 
   return {
