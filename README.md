@@ -8,7 +8,14 @@ A hand-drawn illustration and animation language for LLMs. Manim gave language m
 
 ```
 npm install -g sketchling
+npx playwright install chromium   # one-time: rendering runs through a real headless browser
 ```
+
+Renders go through actual headless Chromium (via [Playwright](https://playwright.dev)), not a
+canvas library — that install step above is a one-time ~150-300MB Chromium download, not
+something `npm install` pulls in silently. `--video` export (and the `"pixel"` texture) also
+needs `ffmpeg` on `PATH` — install it however your platform normally does (`brew install
+ffmpeg`, `apt install ffmpeg`, ...); a still-only workflow (`--out preview.png`) doesn't need it.
 
 ## Why
 
