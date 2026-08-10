@@ -67,7 +67,12 @@ program
     await runContactSheet(sceneFile, opts.out);
   });
 
-program.parseAsync(process.argv);
+program.parseAsync(process.argv).catch((err: unknown) => {
+  // Without this catch, a render failure surfaces as an unhandled promise rejection —
+  // a full Node stack trace for what is usually an actionable one-line message.
+  console.error(`sketchling: ${err instanceof Error ? err.message : String(err)}`);
+  process.exitCode = 1;
+});
 
 interface RenderOpts {
   out: string;
@@ -115,12 +120,51 @@ async function runRender(sceneFile: string, opts: RenderOpts): Promise<RenderRep
     return { artifact: htmlPath, duration: Math.max(...inspectRenderable(serialized).scenes.map((scene) => scene.estimatedEnd), 0), output: outputSize(serialized), lint, validation };
   }
 
+  const pixelPost = serialized.kind === "scene" && serialized.texture === "pixel" ? pixelateBuffer : undefined;
+
+  return withScenePage(htmlPath, outputSize(serialized), async ({ page, cdp, totalDuration }) => {
+    if (opts.video) {
+      await renderVideo(page, cdp, opts.video, Number(opts.fps), workdir, pixelPost, opts.json);
+      const report: RenderReport = { artifact: path.resolve(process.cwd(), opts.video), duration: totalDuration, output: outputSize(serialized), lint, validation };
+      if (opts.json) console.log(JSON.stringify(report));
+      return report;
+    } else {
+      const at = opts.at !== undefined ? Number(opts.at) : totalDuration;
+      await withTimeout(
+        captureFrame(page, cdp, at, path.resolve(process.cwd(), opts.out), opts.crop, pixelPost),
+        FRAME_TIMEOUT_MS,
+        "capture frame"
+      );
+      const report: RenderReport = { artifact: path.resolve(process.cwd(), opts.out), at, duration: totalDuration, output: outputSize(serialized), lint, validation };
+      if (opts.json) console.log(JSON.stringify(report));
+      else console.log(`Rendered ${sceneFile} at t=${at.toFixed(2)}s -> ${opts.out}`);
+      return report;
+    }
+  });
+}
+
+interface ScenePage {
+  page: Page;
+  cdp: CDPSession;
+  totalDuration: number;
+}
+
+/** Launches Chromium on the built harness, hands the ready page (plus its CDP session and
+ * the scene's authoritative duration) to `fn`, and closes the browser afterward. The retry
+ * loop wraps `fn` itself, not just the launch — a stuck CDP evaluate can wedge the whole
+ * browser session (a known local Chromium/Playwright flakiness, not scene-specific), so a
+ * mid-capture hang gets a fresh browser and a full re-run, same as before this was shared
+ * between runRender and runContactSheet. */
+async function withScenePage<T>(
+  htmlPath: string,
+  output: { width: number; height: number },
+  fn: (scenePage: ScenePage) => Promise<T>
+): Promise<T> {
   let lastErr: unknown;
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     const browser = await chromium.launch();
     try {
-      const { width: outW, height: outH } = outputSize(serialized);
-      const page = await browser.newPage({ viewport: { width: outW, height: outH } });
+      const page = await browser.newPage({ viewport: { width: output.width, height: output.height } });
       page.setDefaultTimeout(FRAME_TIMEOUT_MS);
       if (process.env.SKETCHLING_DEBUG) {
         page.on("console", (m) => console.error("[browser]", m.type(), m.text()));
@@ -138,33 +182,13 @@ async function runRender(sceneFile: string, opts: RenderOpts): Promise<RenderRep
         FRAME_TIMEOUT_MS,
         "read duration"
       );
-
-      const pixelPost = serialized.kind === "scene" && serialized.texture === "pixel" ? pixelateBuffer : undefined;
-
-      if (opts.video) {
-        await renderVideo(page, cdp, opts.video, Number(opts.fps), workdir, pixelPost, opts.json);
-        const report: RenderReport = { artifact: path.resolve(process.cwd(), opts.video), duration: totalDuration, output: outputSize(serialized), lint, validation };
-        if (opts.json) console.log(JSON.stringify(report));
-        await browser.close();
-        return report;
-      } else {
-        const at = opts.at !== undefined ? Number(opts.at) : totalDuration;
-        await withTimeout(
-          captureFrame(page, cdp, at, path.resolve(process.cwd(), opts.out), opts.crop, pixelPost),
-          FRAME_TIMEOUT_MS,
-          "capture frame"
-        );
-        const report: RenderReport = { artifact: path.resolve(process.cwd(), opts.out), at, duration: totalDuration, output: outputSize(serialized), lint, validation };
-        if (opts.json) console.log(JSON.stringify(report));
-        else console.log(`Rendered ${sceneFile} at t=${at.toFixed(2)}s -> ${opts.out}`);
-        await browser.close();
-        return report;
-      }
+      const result = await fn({ page, cdp, totalDuration });
+      await browser.close();
+      return result;
     } catch (err) {
       lastErr = err;
-      // A stuck CDP evaluate can wedge the whole browser session (a known local
-      // Chromium/Playwright flakiness, not scene-specific) — close() can hang in
-      // that state too, so give it a short grace period and move on regardless.
+      // close() can hang in the wedged-session state too, so give it a short grace
+      // period and move on regardless.
       await withTimeout(browser.close(), 3_000, "browser close").catch(() => {});
       if (attempt < MAX_ATTEMPTS) {
         console.error(`render attempt ${attempt} failed (${(err as Error).message}), retrying...`);
@@ -175,13 +199,31 @@ async function runRender(sceneFile: string, opts: RenderOpts): Promise<RenderRep
 }
 
 async function runContactSheet(sceneFile: string, out: string): Promise<void> {
-  const framesDir = mkdtempSync(path.join(tmpdir(), "sketchling-contact-sheet-"));
-  const first = await runRender(sceneFile, { out: path.join(framesDir, "frame-00.png"), crop: false, fps: "24", serve: false, quietLint: true, json: false, at: "0" });
-  const sampleCount = 6;
-  for (let i = 1; i < sampleCount; i++) {
-    const at = (first.duration * i) / (sampleCount - 1);
-    await runRender(sceneFile, { out: path.join(framesDir, `frame-0${i}.png`), crop: false, fps: "24", serve: false, quietLint: true, json: false, at: String(at) });
+  const workdir = mkdtempSync(path.join(tmpdir(), "sketchling-contact-sheet-"));
+  const serialized = await buildScene(path.resolve(process.cwd(), sceneFile), workdir);
+  const validation = validateRenderable(serialized);
+  if (validation.some((finding) => finding.level === "error")) {
+    throw new Error("Scene validation failed. Run `sketchling validate <sceneFile> --json` for structured diagnostics.");
   }
+  const htmlPath = await buildHarness(serialized, workdir);
+  const pixelPost = serialized.kind === "scene" && serialized.texture === "pixel" ? pixelateBuffer : undefined;
+  const framesDir = path.join(workdir, "frames");
+  mkdirSync(framesDir, { recursive: true });
+  const sampleCount = 6;
+
+  // One browser and one bundled scene for all six frames — this used to call runRender per
+  // frame, re-bundling the scene and relaunching Chromium six times over for one sheet.
+  await withScenePage(htmlPath, outputSize(serialized), async ({ page, cdp, totalDuration }) => {
+    for (let i = 0; i < sampleCount; i++) {
+      const at = (totalDuration * i) / (sampleCount - 1);
+      await withTimeout(
+        captureFrame(page, cdp, at, path.join(framesDir, `frame-0${i}.png`), false, pixelPost),
+        FRAME_TIMEOUT_MS,
+        `capture frame ${i}`
+      );
+    }
+  });
+
   const resolvedOut = path.resolve(process.cwd(), out);
   await runFfmpeg(["-y", "-framerate", "1", "-i", path.join(framesDir, "frame-%02d.png"), "-vf", "tile=3x2:padding=4:color=white", "-frames:v", "1", resolvedOut]);
   console.log(`Rendered contact sheet -> ${resolvedOut}`);
@@ -234,10 +276,15 @@ async function buildHarness(serialized: Renderable, workdir: string): Promise<st
   // it here, rather than esbuild-bundling src/render/harness-entry.ts on every render call,
   // is what lets this work from a published install, which has no src/ directory at all.
   const runtimeJs = readFileSync(path.join(pkgRoot, "dist/harness.js"), "utf-8");
+  // JSON.stringify never escapes "<", so a literal "</script>" inside any authored string
+  // (a node label, a text caption) would terminate this inline <script> block early and
+  // corrupt the harness — \u003c is byte-equivalent inside a JSON string literal and
+  // can't be misread as markup.
+  const sceneJson = JSON.stringify(serialized).replace(/</g, "\\u003c");
   const html = `<!doctype html><html><head><meta charset="utf-8"></head>
 <body style="margin:0">
 <div id="stage"></div>
-<script>window.__SKETCHLING_SCENE__ = ${JSON.stringify(serialized)};</script>
+<script>window.__SKETCHLING_SCENE__ = ${sceneJson};</script>
 <script>${runtimeJs}</script>
 </body></html>`;
   const htmlPath = path.join(workdir, "scene.html");
