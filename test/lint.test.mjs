@@ -52,6 +52,15 @@ test("degenerate near-zero-area shapes warn", () => {
   assert.ok(findings.some((f) => f.level === "warn" && f.message.includes("degenerate")), messages(findings));
 });
 
+test('lintIgnore("degenerate") silences the near-zero-area warning', () => {
+  // The dot glyph of "i"/"j"/"." in sketch.text() is a point-like stroke by construction —
+  // authored geometry, not a mistake — so it must be suppressible per node.
+  const scene = sketch.scene({ width: 200, height: 200 });
+  scene.add(sketch.stroke([[100, 100], [100.1, 100.1]]).lintIgnore("degenerate"));
+  const findings = lint(scene);
+  assert.ok(!findings.some((f) => f.message.includes("degenerate")), messages(findings));
+});
+
 test("shapes with fewer than 2 points are errors", () => {
   const scene = sketch.scene({ width: 200, height: 200 });
   scene.add(sketch.stroke([[100, 100]]));

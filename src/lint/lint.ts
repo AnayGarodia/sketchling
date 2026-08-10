@@ -375,7 +375,13 @@ function walk(
       const w = bbox.maxX - bbox.minX;
       const h = bbox.maxY - bbox.minY;
       if (w < 0.5 && h < 0.5) {
-        findings.push({ level: "warn", message: `node ${node.id} is a degenerate (near-zero-area) shape`, nodeId: node.id });
+        // Respects .lintIgnore("degenerate") — some point-like strokes are genuine authored
+        // geometry, not mistakes: the dot glyph of "i"/"j"/"." in sketch.text() at small
+        // sizes is a near-zero-length stroke by construction, and a scene lettering a sign
+        // shouldn't have to avoid dotted letters to lint clean.
+        if (!node.lintSuppress?.includes("degenerate")) {
+          findings.push({ level: "warn", message: `node ${node.id} is a degenerate (near-zero-area) shape`, nodeId: node.id });
+        }
         continue;
       }
       out.push({ nodeId: node.id, bbox, lintSuppress: node.lintSuppress });
