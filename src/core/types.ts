@@ -219,7 +219,14 @@ export interface GradientStop {
   color: string;
 }
 
-export type SceneBackground = string | { stops: GradientStop[]; direction?: "horizontal" | "vertical" };
+// `type` defaults to "linear" when omitted — exactly today's shape/behavior, so every
+// existing background/fill gradient (none of which set it) is unaffected. "radial" ignores
+// `direction` (meaningless for a gradient that radiates from a center rather than running
+// along an axis) and centers on the shape's own bbox (per-shape fill) or the scene's own
+// center (scene background) — a light source's falloff (a candle, a lantern, a sun), where
+// the linear-only stacked-alpha-ellipses workaround every one of this library's own
+// lantern/sun scenes used before this existed.
+export type SceneBackground = string | { stops: GradientStop[]; direction?: "horizontal" | "vertical"; type?: "linear" | "radial" };
 
 // The scene's GEOMETRY treatment — how paths/fills/timing themselves are computed. One of
 // two independent axes (the other is SceneTexture, below); every combination of the two is

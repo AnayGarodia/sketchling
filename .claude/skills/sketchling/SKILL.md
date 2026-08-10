@@ -144,7 +144,7 @@ branch.add(sketch.stroke(points, style)).drawOn();
 
 ### Gradient backgrounds
 
-`background` accepts a flat color string (as before) or a gradient: `{ stops: [{offset, color}, ...], direction? }` (`offset` 0-1, `direction` `"vertical"` (default) or `"horizontal"`). Renders as one real SVG gradient, not hand-sketched — smooth, cheap, and a real sky/backdrop shouldn't look pen-traced. Prefer this over hand-authoring rows of solid-color band rectangles to fake a gradient; the real thing is both less code and looks better (no banding).
+`background` accepts a flat color string (as before) or a gradient: `{ stops: [{offset, color}, ...], direction? }` (`offset` 0-1, `direction` `"vertical"` (default) or `"horizontal"`). Renders as one real SVG gradient, not hand-sketched — smooth, cheap, and a real sky/backdrop shouldn't look pen-traced. Prefer this over hand-authoring rows of solid-color band rectangles to fake a gradient; the real thing is both less code and looks better (no banding). `type?: "linear" | "radial"` (default `"linear"`) — `"radial"` ignores `direction` and radiates from a center instead: the scene's own center for a background (reaching the farthest corner), the shape's own bbox center for a per-shape `fill.color` (reaching every edge). The same `{stops, type: "radial"}` shape works both places, and on a shape it's the real fix for a light source's falloff (a candle, a lantern, a sun) — a stop fading to a transparent color (`"#ffcf5c00"`, alpha `00`) reads as a soft glow, one fill instead of several flat-colored circles stacked at decreasing alpha. See `examples/gallery/ellipse-shapes.ts`'s sun.
 
 ## 3D — genuine rotating solids, sketched
 

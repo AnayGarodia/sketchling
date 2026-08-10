@@ -16,10 +16,17 @@ export function applyBackground(scene: SerializedScene, layer: SVGGElement): voi
   } else {
     const defs = layer.ownerSVGElement?.querySelector("defs");
     const gradId = nextUid("sk-bg-grad");
-    const grad = document.createElementNS(SVG_NS, "linearGradient");
+    const isRadial = scene.background.type === "radial";
+    const grad = document.createElementNS(SVG_NS, isRadial ? "radialGradient" : "linearGradient");
     grad.setAttribute("id", gradId);
     grad.setAttribute("gradientUnits", "userSpaceOnUse");
-    if (scene.background.direction === "horizontal") {
+    if (isRadial) {
+      // Centered on the scene, reaching the farthest corner — a light source filling the
+      // whole frame from its middle, not just to the nearest edge.
+      grad.setAttribute("cx", String(scene.width / 2));
+      grad.setAttribute("cy", String(scene.height / 2));
+      grad.setAttribute("r", String(Math.hypot(scene.width, scene.height) / 2));
+    } else if (scene.background.direction === "horizontal") {
       grad.setAttribute("x1", "0");
       grad.setAttribute("y1", "0");
       grad.setAttribute("x2", String(scene.width));
@@ -53,9 +60,15 @@ export function applyBackground(scene: SerializedScene, layer: SVGGElement): voi
  * it uses objectBoundingBox instead of userSpaceOnUse. */
 export function buildShapeGradient(defs: SVGDefsElement | null | undefined, spec: Exclude<SceneBackground, string>): string {
   const gradId = nextUid("sk-fill-grad");
-  const grad = document.createElementNS(SVG_NS, "linearGradient");
+  const isRadial = spec.type === "radial";
+  const grad = document.createElementNS(SVG_NS, isRadial ? "radialGradient" : "linearGradient");
   grad.setAttribute("id", gradId);
-  if (spec.direction === "horizontal") {
+  // radialGradient's own SVG defaults (cx/cy 50%, r 50%) already center it on the shape's
+  // bbox and reach every edge — objectBoundingBox needs nothing set explicitly, unlike the
+  // scene-background case above (userSpaceOnUse, no shape to size itself against).
+  if (isRadial) {
+    // no-op: defaults are exactly right
+  } else if (spec.direction === "horizontal") {
     grad.setAttribute("x1", "0");
     grad.setAttribute("y1", "0");
     grad.setAttribute("x2", "1");
