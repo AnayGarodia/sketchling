@@ -68,6 +68,8 @@ Ask an LLM to hand code an SVG path for a person or a tree and you get something
 
 **Real animation, not just tweening.** `drawOn` reveals a shape the way a hand actually draws it, tracing the outline first and filling in after, with a pen tip riding the leading edge. Line boil keeps a finished stroke subtly alive rather than looking frozen the instant it lands.
 
+**Labeled, relative scheduling.** Every animation lives on one timeline, but you don't have to hand-compute absolute seconds for it: `scene.label("liftoff", 4.2)` names a moment, and any later `at` can reference it (`"liftoff+0.4"`), with `node.endAt` chaining a sequence off whatever just finished — instead of a wall of hand-tallied literals.
+
 **IK rigging and procedural gait.** `sketch.limb` gives you a two bone chain solved from a target position. `sketch.walk` turns two of those into a full bipedal gait, feet planting without sliding, arms counter swinging with the legs, generated from step count and stride length rather than hand tuned per pose.
 
 **Camera and film.** Pan and zoom through a world bigger than one screen, follow a moving character, or cut several independent scenes together into one continuous piece with `sketch.film()`, the tool *The Lantern Maker* itself is built with.
