@@ -36,6 +36,13 @@ jobs:
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
 
+      # examples/gallery/pixel-look.ts's "pixel" texture is a post-process run through
+      # ffmpeg (see AGENTS.md's texture reference) rather than an SVG filter like every
+      # other texture, so it's the one example in the whole smoke-render sweep that needs
+      # ffmpeg on PATH — ubuntu-latest doesn't ship it by default.
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
       # Determinism is a load-bearing guarantee (seeded jitter, randomize:false eases,
       # precomputed springs) — two renders of the same scene at the same t must be
       # byte-identical, or an agent can no longer reproduce or compare frames.
