@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm run lint
+      - run: node --test test/*.test.mjs
+      - name: Install Chromium for render smoke test
+        run: npx playwright install --with-deps chromium
+      # A still render exercises the whole pipeline end to end: esbuild scene bundling,
+      # the prebuilt browser harness, Playwright/CDP capture. No ffmpeg needed for stills.
+      - name: Render smoke test
+        run: |
+          node bin/sketchling.js render examples/potted-plant.ts --at 1.8 --out /tmp/smoke-mid.png
+          node bin/sketchling.js render examples/film-seed-to-bloom.ts --out /tmp/smoke-film.png
+      # Determinism is a load-bearing guarantee (seeded jitter, randomize:false eases,
+      # precomputed springs) — two renders of the same scene at the same t must be
+      # byte-identical, or an agent can no longer reproduce/compare frames.
+      - name: Determinism check
+        run: |
+          node bin/sketchling.js render examples/potted-plant.ts --at 1.8 --out /tmp/det-a.png
+          node bin/sketchling.js render examples/potted-plant.ts --at 1.8 --out /tmp/det-b.png
+          cmp /tmp/det-a.png /tmp/det-b.png

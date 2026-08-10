@@ -6,7 +6,8 @@ import { Mesh3D } from "./mesh3d.js";
 import { Limb } from "./limb.js";
 import { Connector } from "./connector.js";
 import { Particles } from "./particles.js";
-import type { RenderLook, SceneBackground, SerializedNode, SerializedScene } from "./types.js";
+import { Sound } from "./sound.js";
+import type { RenderLook, SceneBackground, SceneTexture, SerializedNode, SerializedScene } from "./types.js";
 import { hashSeed } from "./geometry.js";
 
 export interface SceneOptions {
@@ -20,10 +21,14 @@ export interface SceneOptions {
   // one SVG linearGradient, not hand-sketched — a backdrop is painted, not pen-traced.
   background?: SceneBackground;
   seed?: number | string;
-  // The scene's visual treatment — see RenderLook. Default "ink" renders exactly as
+  // The scene's geometry treatment — see RenderLook. Default "ink" renders exactly as
   // before; every other look is the same authored scene (geometry, physics, timing)
   // painted differently.
   look?: RenderLook;
+  // An optional whole-frame texture layered over `look` — see SceneTexture. Independent
+  // axis: any texture combines with any of "ink"/"flat"/"clay" (meaningless under
+  // "lit3d"/"toon3d"). Omit for exactly today's behavior with no texture at all.
+  texture?: SceneTexture;
 }
 
 export class Scene {
@@ -34,6 +39,7 @@ export class Scene {
   background: SceneBackground;
   seed: number;
   look: RenderLook;
+  texture?: SceneTexture;
   children: SketchNode[] = [];
   private _camera?: Camera;
 
@@ -45,6 +51,7 @@ export class Scene {
     this.background = opts.background ?? "#faf7f0";
     this.seed = typeof opts.seed === "string" ? hashSeed(opts.seed) : opts.seed ?? 1;
     this.look = opts.look ?? "ink";
+    this.texture = opts.texture;
   }
 
   add(node: SketchNode): SketchNode {
@@ -88,6 +95,7 @@ export class Scene {
       background: this.background,
       seed: this.seed,
       look: this.look,
+      texture: this.texture,
       children: this.children.map(serializeNode),
       camera: this._camera?.ops ?? [],
     };
@@ -98,6 +106,7 @@ function serializeNode(node: SketchNode): SerializedNode {
   if (node instanceof Group) {
     return {
       id: node.id,
+      label: node.label,
       type: "group",
       style: node.style,
       transform: node.transform,
@@ -110,6 +119,7 @@ function serializeNode(node: SketchNode): SerializedNode {
   if (node instanceof Mesh3D) {
     return {
       id: node.id,
+      label: node.label,
       type: "mesh3d",
       style: node.style,
       transform: node.transform,
@@ -123,7 +133,7 @@ function serializeNode(node: SketchNode): SerializedNode {
   }
   if (node instanceof Limb) {
     return {
-      id: node.id, type: "limb", style: node.style, transform: node.transform,
+      id: node.id, label: node.label, type: "limb", style: node.style, transform: node.transform,
       animations: node.animations, seed: node.seed,
       limbRootX: node.rootX, limbRootY: node.rootY, limbLen1: node.len1, limbLen2: node.len2,
       limbBend: node.bend, limbCapRadius: node.capRadius, limbCapColor: node.capColor,
@@ -132,14 +142,14 @@ function serializeNode(node: SketchNode): SerializedNode {
   }
   if (node instanceof Connector) {
     return {
-      id: node.id, type: "connector", style: node.style, transform: node.transform,
+      id: node.id, label: node.label, type: "connector", style: node.style, transform: node.transform,
       animations: node.animations, seed: node.seed,
       connectorAnchorX: node.anchorX, connectorAnchorY: node.anchorY, connectorTargetId: node.targetId,
     };
   }
   if (node instanceof Particles) {
     return {
-      id: node.id, type: "particles", style: node.style, transform: node.transform,
+      id: node.id, label: node.label, type: "particles", style: node.style, transform: node.transform,
       animations: node.animations, seed: node.seed,
       particlesSpawnX: node.spawnX, particlesSpawnY: node.spawnY, particlesCount: node.count,
       particlesAngle: node.angle, particlesSpread: node.spread,
@@ -149,9 +159,18 @@ function serializeNode(node: SketchNode): SerializedNode {
       particlesSizeMin: node.sizeMin, particlesSizeMax: node.sizeMax, particlesFade: node.fade,
     };
   }
+  if (node instanceof Sound) {
+    return {
+      id: node.id, label: node.label, type: "sound", style: node.style, transform: node.transform,
+      animations: node.animations, seed: node.seed,
+      soundPitch: node.pitch, soundAt: node.at, soundDuration: node.duration,
+      soundInstrument: node.instrument, soundVelocity: node.velocity, soundPan: node.pan,
+    };
+  }
   if (node instanceof Stroke) {
     return {
       id: node.id,
+      label: node.label,
       type: "stroke",
       points: node.points,
       closed: node.closed,

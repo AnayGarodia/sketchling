@@ -16,20 +16,20 @@ export function rotatePoint(x: number, y: number, z: number, rx: number, ry: num
 
   // X axis
   let cosA = Math.cos(rx), sinA = Math.sin(rx);
-  let y1 = py * cosA - pz * sinA;
-  let z1 = py * sinA + pz * cosA;
+  const y1 = py * cosA - pz * sinA;
+  const z1 = py * sinA + pz * cosA;
   py = y1; pz = z1;
 
   // Y axis
   cosA = Math.cos(ry); sinA = Math.sin(ry);
-  let x2 = px * cosA + pz * sinA;
-  let z2 = -px * sinA + pz * cosA;
+  const x2 = px * cosA + pz * sinA;
+  const z2 = -px * sinA + pz * cosA;
   px = x2; pz = z2;
 
   // Z axis
   cosA = Math.cos(rz); sinA = Math.sin(rz);
-  let x3 = px * cosA - py * sinA;
-  let y3 = px * sinA + py * cosA;
+  const x3 = px * cosA - py * sinA;
+  const y3 = px * sinA + py * cosA;
   px = x3; py = y3;
 
   return { x: px, y: py, z: pz };

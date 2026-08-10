@@ -14,7 +14,15 @@ export interface StrokeStyle {
 }
 
 export interface FillDef {
-  color: string;
+  // A flat color renders exactly as before. A gradient spec ({stops, direction}, the same
+  // shape scene.background already takes) renders as one real per-shape SVG
+  // linearGradient, sized to the shape's own bounding box — a light-to-shadow gradient on
+  // a single form (a landform lit from one side, a body with a shaded underside) instead
+  // of a uniform flat fill, the volumetric cue a flat-shaded "ink"/"flat" shape otherwise
+  // has none of. Only meaningful with fillStyle "solid" — hachure/cross-hatch/zigzag/dots
+  // are procedural line strokes with no continuous area to gradient across, so a gradient
+  // color on those fill styles just resolves to its first stop, same as before.
+  color: SceneBackground;
   style?: FillStyle;
   density?: number; // 0..1, maps to hachure gap
   angle?: number; // degrees
@@ -87,7 +95,11 @@ export interface Mesh3DFaceData {
 
 export interface SerializedNode {
   id: string;
-  type: "stroke" | "blob" | "group" | "mesh3d" | "limb" | "connector" | "particles";
+  /** Optional author-chosen diagnostic handle, set with node.named("..."). */
+  label?: string;
+  // No "blob" member: a Blob is a Stroke subclass whose outline is baked at construction,
+  // so it serializes as a plain closed stroke (see node.ts's own type comment).
+  type: "stroke" | "group" | "mesh3d" | "limb" | "connector" | "particles" | "sound";
   points?: Point[];
   closed?: boolean;
   style?: NodeStyle;
@@ -147,6 +159,18 @@ export interface SerializedNode {
   particlesSizeMin?: number;
   particlesSizeMax?: number;
   particlesFade?: boolean;
+  // sound only: one scheduled note or hit — `soundAt` is this node's own absolute scene-
+  // timeline position (in Scene-local seconds; a Film shifts it by that entry's own cut
+  // offset when collecting audio, the same offset its visual timeline already applies via
+  // masterTl.add — see renderer.ts's mountFilm). `soundPitch` is a MIDI note number, or
+  // `null` for an unpitched hit. The 2D fields above (points/closed) are unused here, same
+  // convention as mesh3d/limb/connector/particles.
+  soundPitch?: number | null;
+  soundAt?: number;
+  soundDuration?: number;
+  soundInstrument?: string;
+  soundVelocity?: number;
+  soundPan?: number;
 }
 
 export interface GradientStop {
@@ -156,8 +180,9 @@ export interface GradientStop {
 
 export type SceneBackground = string | { stops: GradientStop[]; direction?: "horizontal" | "vertical" };
 
-// The scene's visual treatment — what turns an authored shape into pixels, independent of
-// what that shape IS (its geometry, physics, timing are the same regardless).
+// The scene's GEOMETRY treatment — how paths/fills/timing themselves are computed. One of
+// two independent axes (the other is SceneTexture, below); every combination of the two is
+// valid and renders correctly, not just the ones with their own name.
 // - "ink" (default): hand-drawn rough.js sketchiness, line boil, a visible pen tip during
 //   drawOn.
 // - "flat": the same shapes and timing rendered crisp and precise instead — no jitter, no
@@ -166,24 +191,47 @@ export type SceneBackground = string | { stops: GradientStop[]; direction?: "hor
 // - "clay": moderate, subtler jitter than ink (hand-molded, not hand-sketched), solid
 //   fills, and time itself quantized to a ~10fps hold — a stop-motion cadence, not a
 //   continuous tween, applied at the seek level rather than per-shape.
-// - "watercolor": the same crisp geometry as "flat", with a whole-frame SVG filter
-//   (turbulence displacement + a soft blur) bleeding every edge — a post-process over the
-//   same pipeline, not a different stroke style underneath.
 // - "lit3d": a genuinely separate rendering pipeline (WebGL/Three.js, not SVG/rough.js) —
 //   real directional + ambient lighting and cast shadows on mesh3d nodes specifically.
 //   Only mesh3d nodes have a 3D representation; every 2D-only node (stroke, blob, limb,
 //   text) in the same scene simply doesn't appear in a lit3d render. See renderer3d.ts.
-// - "pixel": "flat"'s crisp geometry, with every captured frame additionally downsampled
-//   and nearest-neighbor upscaled back to size (a raster post-process applied in cli.ts
-//   after the browser screenshot, not a DOM/SVG-level change) — a blocky, low-res game-art
-//   look. Requires ffmpeg on PATH, same as --video already does.
+//   SceneTexture doesn't apply here — a separate pipeline, not wired to the 2D filter
+//   system.
 // - "toon3d": lit3d's exact pipeline (same camera, lights, shadows, mesh3d-only scope) with
 //   a stepped/cel gradient map on each mesh's material instead of a continuous PBR one —
 //   flat toon bands instead of a smooth roughness falloff — plus a black inverted-hull
 //   silhouette outline (a second back-face-only mesh scaled up ~4%, parented so it inherits
 //   the same animated transform for free). A shading variant of lit3d, not a separate
 //   pipeline; see renderer3d.ts.
-export type RenderLook = "ink" | "flat" | "clay" | "watercolor" | "lit3d" | "pixel" | "toon3d";
+export type RenderLook = "ink" | "flat" | "clay" | "lit3d" | "toon3d";
+
+// The scene's TEXTURE — an optional whole-frame post-process layered over whichever
+// RenderLook was chosen, freely combinable with any of "ink"/"flat"/"clay" (meaningless
+// under "lit3d"/"toon3d", a separate pipeline this doesn't reach). Independent of geometry
+// on purpose: a watercolor wash over ink's own sketchy jitter, or grain over flat's crisp
+// precision, are both real, useful, and equally valid — earlier revisions coupled specific
+// textures to specific "crisp" geometry, which worked until grain (aged paper) needed to
+// pair with ink's hachure fills for an old-book/engraving register and crisp-only broke
+// that combination outright.
+// - "watercolor": a whole-frame SVG filter (turbulence displacement + a soft blur) bleeding
+//   every edge, like wet pigment — a post-process over whatever geometry look is active,
+//   not a different stroke style underneath.
+// - "grain": a different whole-frame SVG filter — feTurbulence noise converted to a
+//   pure-black layer whose alpha (not color) varies with noise brightness, blended over the
+//   source via feBlend "overlay" (darkens shadows/lightens highlights slightly, the way
+//   real grain modulates an image, not a flat semi-transparent layer on top). Fine
+//   aged-paper/film-grain texture instead of wet-media bleed.
+// - "pixel": every captured frame additionally downsampled and nearest-neighbor upscaled
+//   back to size (a raster post-process applied in cli.ts after the browser screenshot, not
+//   a DOM/SVG-level change) — a blocky, low-res game-art look. Requires ffmpeg on PATH,
+//   same as --video already does. Scene-only, same limitation as before the two-axis split:
+//   it lives in the CLI's capture step, operating on the final composited frame, so a Film
+//   entry using it doesn't get pixelated (there's no way to selectively pixelate one
+//   entry's screen region after everything's already composited into one canvas) and it's
+//   invisible under --serve (which skips the capture step entirely). "watercolor"/"grain"
+//   don't share this limitation — they're SVG filters scoped to each Film entry's own
+//   wrapper element, so they DO apply correctly inside a Film.
+export type SceneTexture = "watercolor" | "grain" | "pixel";
 
 export interface SerializedScene {
   kind: "scene";
@@ -199,6 +247,7 @@ export interface SerializedScene {
   background: SceneBackground;
   seed: number;
   look: RenderLook;
+  texture?: SceneTexture;
   children: SerializedNode[];
   camera: CameraOp[];
 }

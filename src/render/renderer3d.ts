@@ -2,6 +2,7 @@ import * as THREE from "three";
 import gsap from "gsap";
 import type { Point3, SerializedNode, SerializedScene } from "../core/types.js";
 import type { MountResult } from "./renderer.js";
+import { flatColorOf } from "./style.js";
 
 /**
  * A second, genuinely separate rendering pipeline (WebGL/Three.js, not SVG/rough.js) for
@@ -86,7 +87,6 @@ export function mountLit3D(scene: SerializedScene, container: HTMLElement): Moun
   const objects: THREE.Object3D[] = [];
   for (const { node } of meshEntries) {
     const radius = boundingRadius(node.mesh3dVertices ?? []);
-    const startScreenX = node.transform.x;
     const startScreenY = node.transform.y;
     const startWorldY = height - startScreenY;
     groundWorldY = Math.min(groundWorldY, startWorldY - radius);
@@ -120,6 +120,11 @@ export function mountLit3D(scene: SerializedScene, container: HTMLElement): Moun
       render();
     },
     totalDuration: () => tl.duration(),
+    // lit3d/toon3d doesn't collect sketch.sound() nodes yet — a genuinely separate pipeline
+    // from buildSceneInto (see this file's own doc comment), not wired up to audio in this
+    // first pass. Empty, not an error: a mesh3d-only scene with sound in it renders silently
+    // rather than failing, same as any other "not on this pipeline yet" gap.
+    soundEvents: [],
   };
 }
 
@@ -185,7 +190,7 @@ function buildToonOutline(geometry: THREE.BufferGeometry): THREE.Mesh {
 function buildMeshObject(node: SerializedNode, toonGradientMap: THREE.DataTexture | null): THREE.Mesh {
   const vertices = node.mesh3dVertices ?? [];
   const faces = node.mesh3dFaces ?? [];
-  const baseColorHex = node.style?.fill?.color ?? node.style?.color ?? "#8a8a8a";
+  const baseColorHex = flatColorOf(node.style?.fill?.color, node.style?.color ?? "#8a8a8a");
   const baseColor = new THREE.Color(baseColorHex);
 
   const positions: number[] = [];
@@ -238,9 +243,12 @@ function buildMeshObject(node: SerializedNode, toonGradientMap: THREE.DataTextur
  * object.rotation.x/y/z — Three.js's default Euler order is "XYZ", matching
  * geometry3d.ts's rotatePoint exactly, so a given spin3d call produces the same visual
  * orientation in both backends. */
-function driveNodeAnimations(obj: THREE.Object3D, node: SerializedNode, tl: gsap.core.Timeline, viewportHeight: number): void {
+function driveNodeAnimations(obj: THREE.Mesh, node: SerializedNode, tl: gsap.core.Timeline, viewportHeight: number): void {
   obj.position.set(node.transform.x, viewportHeight - node.transform.y, 0);
   obj.scale.set(node.transform.scale, node.transform.scale, node.transform.scale);
+  const opacity = { value: node.transform.opacity };
+  const applyOpacity = () => setObjectOpacity(obj, opacity.value);
+  applyOpacity();
 
   for (const op of node.animations) {
     const at = op.at ?? 0;
@@ -263,7 +271,12 @@ function driveNodeAnimations(obj: THREE.Object3D, node: SerializedNode, tl: gsap
         tl.to(obj.rotation, { z: -(op.degrees * Math.PI) / 180, duration: op.duration ?? 0.6, ease: op.ease ?? "power2.out" }, at);
         break;
       case "fadeTo":
-        tl.to(obj as unknown as { opacity: number }, { opacity: op.opacity, duration: op.duration ?? 0.6, ease: op.ease ?? "power2.out" }, at);
+        tl.to(opacity, { value: op.opacity, duration: op.duration ?? 0.6, ease: op.ease ?? "power2.out", onUpdate: applyOpacity }, at);
+        break;
+      case "appear":
+        opacity.value = 0;
+        applyOpacity();
+        tl.to(opacity, { value: 1, duration: op.duration ?? 0.6, ease: op.ease ?? "power2.out", onUpdate: applyOpacity }, at);
         break;
       case "spin3d":
         tl.to(
@@ -282,4 +295,16 @@ function driveNodeAnimations(obj: THREE.Object3D, node: SerializedNode, tl: gsap
         break; // drawOn, appear, morphTo, moveAlong: 2D-only, no 3D meaning here
     }
   }
+}
+
+function setObjectOpacity(object: THREE.Object3D, opacity: number): void {
+  object.traverse((child) => {
+    if (!(child instanceof THREE.Mesh)) return;
+    const materials = Array.isArray(child.material) ? child.material : [child.material];
+    for (const material of materials) {
+      material.transparent = opacity < 1;
+      material.opacity = opacity;
+      material.needsUpdate = true;
+    }
+  });
 }

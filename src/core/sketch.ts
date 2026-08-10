@@ -11,8 +11,11 @@ import { walk, type WalkOptions, type WalkResult } from "./gait.js";
 import { Connector } from "./connector.js";
 import { Particles, type ParticleOpts } from "./particles.js";
 import { quickRig, type QuickRig, type QuickRigOpts } from "./quickrig.js";
+import { Sound, type SoundOpts } from "./sound.js";
+import { shade, type ShadeOptions } from "./color.js";
 import type { SketchNode } from "./node.js";
 import type { NodeStyle, Point, Point3 } from "./types.js";
+import type { SceneBackground } from "./types.js";
 
 export const sketch = {
   scene(opts: SceneOptions = {}): Scene {
@@ -27,7 +30,7 @@ export const sketch = {
   blob(cx: number, cy: number, radius: number, style: NodeStyle = {}, vertices = 10): Blob {
     return new Blob(cx, cy, radius, style, vertices);
   },
-  group(children: import("./node.js").SketchNode[] = [], style: NodeStyle = {}): Group {
+  group(children: SketchNode[] = [], style: NodeStyle = {}): Group {
     return new Group(children, style);
   },
   film(opts: FilmOptions = {}): Film {
@@ -108,5 +111,30 @@ export const sketch = {
    * joints on an unusual shape. */
   quickRig(body: Stroke | Group, opts: QuickRigOpts): QuickRig {
     return quickRig(body, opts);
+  },
+  /** One scheduled note or hit — sketchling's only audio primitive, on the same scene-
+   * global `at` timeline every animation already uses. `pitch` is scientific pitch notation
+   * ("C4"), a raw MIDI number, or `null` for an unpitched percussive hit. `instrument`
+   * names a voice the renderer knows ("piano", "strings", "pad", "pluck", "thud", "brush",
+   * ...); melodic instruments are sample-based where a real sample set is available,
+   * percussive/effect voices are always synthesized. No chord/melody/mood helper on top —
+   * a chord is several sketch.sound() calls at the same `at`; composing them is the
+   * caller's job, the same "primitives, not a curated library" boundary the visual side
+   * draws around shape helpers. */
+  sound(pitch: string | number | null, opts: SoundOpts = {}): Sound {
+    return new Sound(pitch, opts);
+  },
+  /** Derives a real light-direction gradient from one base color instead of hand-picking
+   * 2-3 hex stops per shape — a highlight → base → shadow spread, `from` picking which edge
+   * the light comes from ("top" default), `amount` (0-1, default 0.35) picking how strong
+   * the falloff is. Returns the same `{stops, direction}` shape `fill.color`/
+   * `scene.background` already accept, so `fill: { color: sketch.shade("#8a7460"), style:
+   * "solid" }` is a drop-in replacement for a flat color anywhere a gradient is valid (see
+   * NodeStyle.fill's own doc comment on the solid-fillStyle requirement). The shadow side is
+   * nudged slightly cool/blue-violet and the lit side slightly warm, not a plain lighter/
+   * darker lerp — the same "cooler further back, warmer where lit" instinct every hand-
+   * authored gradient in the showcase gallery already uses, made automatic. */
+  shade(base: string, opts: ShadeOptions = {}): SceneBackground {
+    return shade(base, opts);
   },
 };

@@ -5,11 +5,15 @@ let autoId = 0;
 
 export abstract class SketchNode {
   readonly id: string;
-  abstract readonly type: "stroke" | "blob" | "group" | "mesh3d" | "limb" | "connector" | "particles";
+  // No separate "blob" member: a Blob subclasses Stroke with its outline points baked at
+  // construction, so it serializes (and renders) as a plain closed stroke.
+  abstract readonly type: "stroke" | "group" | "mesh3d" | "limb" | "connector" | "particles" | "sound";
   style: NodeStyle;
   transform: Transform = { x: 0, y: 0, scale: 1, rotation: 0, opacity: 1 };
   animations: AnimOp[] = [];
   seed: number;
+  /** A stable, author-chosen handle for diagnostics and agent tooling. */
+  label?: string;
 
   constructor(style: NodeStyle = {}, id?: string) {
     this.id = id ?? `n${autoId++}`;
@@ -25,6 +29,14 @@ export abstract class SketchNode {
 
   withSeed(seed: number): this {
     this.seed = seed;
+    return this;
+  }
+
+  /** Names this node for machine-readable diagnostics. Names need only be unique within a
+   * scene; unlike auto-generated ids, they are intended to survive source edits. */
+  named(label: string): this {
+    if (!label.trim()) throw new Error("Node names must not be empty.");
+    this.label = label;
     return this;
   }
 
