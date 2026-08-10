@@ -96,10 +96,6 @@ export function walk(opts: WalkOptions): WalkResult {
   // on the same target object is a GSAP overwrite conflict (confirmed via a dense-frame
   // check that showed a "planted" foot drifting ~20px despite the cancellation math being
   // exact — the reset tween was silently clobbering step 0's phase-A tween's start value).
-  // Known clean starting state regardless of how the caller set up each limb's own rest
-  // pose — both feet directly under their hip, on the ground. Scheduled strictly before
-  // `at`, not at the same instant: two tweens starting at the exact same timeline position
-  // on the same target object is a GSAP overwrite conflict.
   const resetAt = Math.max(0, at - 0.01);
   for (const leg of legs) {
     leg.limb.ikTo(leg.hipX, groundY, { at: resetAt, duration: 0.001 });

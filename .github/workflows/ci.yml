@@ -4,27 +4,50 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
 
 jobs:
-  build-and-render:
+  # Fast feedback: everything that doesn't need a browser. Runs on its own so a lint or unit
+  # test failure reports in under a minute instead of behind a Chromium download.
+  check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
-          cache: "npm"
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm run lint
+      - run: node --test test/*.test.mjs
 
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Install Playwright's Chromium
+  # The parts that need real headless Chromium. Split from `check` so its ~1 minute of
+  # browser install isn't in the way of a typo-level failure.
+  render:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Install Chromium
         run: npx playwright install --with-deps chromium
 
-      - name: Build
-        run: npm run build
+      # Determinism is a load-bearing guarantee (seeded jitter, randomize:false eases,
+      # precomputed springs) — two renders of the same scene at the same t must be
+      # byte-identical, or an agent can no longer reproduce or compare frames.
+      - name: Determinism check
+        run: |
+          node bin/sketchling.js render examples/potted-plant.ts --at 1.8 --out /tmp/det-a.png
+          node bin/sketchling.js render examples/potted-plant.ts --at 1.8 --out /tmp/det-b.png
+          cmp /tmp/det-a.png /tmp/det-b.png
 
+      # Every example, every time. This only catches loud failures (a throw, a non-zero
+      # exit) — a silently-wrong render still needs a human to look at it — but loud
+      # failures used to slip through unnoticed until someone happened to render that one
+      # example by hand.
       - name: Smoke-render every example
         run: node scripts/smoke-render.mjs

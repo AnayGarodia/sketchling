@@ -26,6 +26,23 @@ sketchling render scene.ts --video out.mp4 --fps 30      # the whole timeline, a
 sketchling render scene.ts --serve                       # open live in a real browser
 ```
 
+### Agent verification loop
+
+Before iterating on an unfamiliar scene, use the CLI as a tool contract instead of inferring
+state from prose or one settled frame:
+
+```sh
+sketchling validate scene.ts --json      # renderer capability and timing diagnostics
+sketchling inspect scene.ts              # node ids/names, bounds, animations, estimated end
+sketchling render scene.ts --out frame.png --json  # exact rendered duration + artifact path
+sketchling contact-sheet scene.ts --out review.png # six evenly spaced visual checkpoints
+```
+
+Name elements that an agent may need to repair: `scene.add(node.named("hero-rocket"))`.
+Diagnostics preserve that name, so a warning can be mapped back to source intent rather than
+an ephemeral `n42` id. Treat `validate` warnings as real capability boundaries: a 2D stroke
+inside a `"toon3d"` scene, for example, is intentionally reported before it disappears.
+
 Tier 0 lint (off-canvas, degenerate shapes, heavy overlap, off-center composition) runs on every render automatically, for free, before any pixel exists. Nested detail (eyes on a face, a keyhole on a screen) routinely trips the overlap warning — that's expected for intentional nesting, not a problem to fix.
 
 ## Primitives

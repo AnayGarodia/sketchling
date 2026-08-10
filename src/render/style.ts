@@ -21,8 +21,9 @@ export function strokeWidthOf(weight: Weight | undefined): number {
 const ENERGY_MULT: Record<string, number> = { calm: 0.7, quick: 1, frantic: 1.6 };
 
 /** The fillStyle rough.js actually ends up using — "flat"/"clay" force solid regardless of
- * what the author asked for, same override roughOptionsFor already applies inline. Pulled
- * out on its own so renderer.ts can decide, before calling roughOptionsFor, whether a
+ * what the author asked for. roughOptionsFor calls this directly rather than re-deriving
+ * it, so the two never drift; pulled out on its own so renderer.ts can also decide, before
+ * calling roughOptionsFor, whether a
  * gradient fill color is even eligible to render as a real gradient (only meaningful on
  * "solid" — hachure/cross-hatch/zigzag/dots are procedural line strokes with no continuous
  * area to gradient across). Independent of SceneTexture entirely — a texture is a
@@ -66,7 +67,7 @@ export function roughOptionsFor(
     // Any gradient spec that reaches here unresolved (a fillStyle that isn't "solid", where
     // a gradient can't render anyway) degrades to its first stop instead of crashing.
     opts.fill = flatColorOf(style.fill.color, style.color ?? "#333");
-    opts.fillStyle = crisp || clay ? "solid" : style.fill.style ?? "hachure";
+    opts.fillStyle = effectiveFillStyle(style, look);
     opts.hachureGap = 3 + (1 - (style.fill.density ?? 0.4)) * 8;
     opts.hachureAngle = style.fill.angle ?? -41;
     opts.fillWeight = Math.max(0.5, strokeWidthOf(style.weight) * 0.4);

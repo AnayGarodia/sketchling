@@ -10,11 +10,10 @@ import { blobPoints } from "./geometry.js";
  */
 export class Blob extends Stroke {
   constructor(cx: number, cy: number, radius: number, style: NodeStyle = {}, vertices = 10) {
-    const looseness = style.looseness ?? 0.3;
-    const seed = Math.floor(Math.random() * 1e9); // temp; overwritten below once id exists
-    const points = blobPoints(cx, cy, radius, looseness, seed, vertices);
-    super(points, style, true);
-    // regenerate with the node's real (id-derived) seed for determinism
-    this.points = blobPoints(cx, cy, radius, looseness, this.seed, vertices);
+    // The node's id-derived seed doesn't exist until super() has run, so the outline is
+    // generated right after instead of being passed in — keeps the only source of blob
+    // randomness the deterministic per-node seed, with no throwaway Math.random() pass.
+    super([], style, true);
+    this.points = blobPoints(cx, cy, radius, style.looseness ?? 0.3, this.seed, vertices);
   }
 }
