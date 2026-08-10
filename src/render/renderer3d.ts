@@ -87,7 +87,6 @@ export function mountLit3D(scene: SerializedScene, container: HTMLElement): Moun
   const objects: THREE.Object3D[] = [];
   for (const { node } of meshEntries) {
     const radius = boundingRadius(node.mesh3dVertices ?? []);
-    const startScreenX = node.transform.x;
     const startScreenY = node.transform.y;
     const startWorldY = height - startScreenY;
     groundWorldY = Math.min(groundWorldY, startWorldY - radius);
