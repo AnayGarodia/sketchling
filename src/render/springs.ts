@@ -16,7 +16,17 @@ export function collectSprings(node: SerializedNode, g: SVGGElement, pendingSpri
   const bbox = computeNodeBBox(node);
   const anchorX = bbox ? (bbox.minX + bbox.maxX) / 2 : 0;
   const anchorY = bbox ? (bbox.minY + bbox.maxY) / 2 : 0;
-  pendingSprings.push({ g, anchorX, anchorY, op });
+  // Two different reference points, and conflating them is the bug this splits apart. The
+  // ANCHOR is the untransformed bbox centre: the per-frame `gsap.set` writes `x` directly, so
+  // turning a world position back into a translate has to measure against geometry with no
+  // translate in it. The REST position is where the node visibly sits before the spring starts,
+  // which does include `initial({x, y})`. Seeding the spring's state from the anchor instead of
+  // the rest position meant a node placed with `initial({x, y})` snapped to its untranslated
+  // origin the instant the spring took over — a lantern authored around a local (0,0) and placed
+  // at (470, 236) jumped to the canvas corner on frame one.
+  const restX = anchorX + (node.transform?.x ?? 0);
+  const restY = anchorY + (node.transform?.y ?? 0);
+  pendingSprings.push({ g, anchorX, anchorY, restX, restY, op });
 }
 
 /**
@@ -65,9 +75,10 @@ export function buildSprings(
     y: number;
   }
   const tables: Sample[][] = pendingSprings.map(() => []);
-  // Starts at the spring node's own authored position (wherever it was drawn) with zero
-  // velocity — it sits still, matching its own geometry, until its driver actually moves.
-  const states = pendingSprings.map((p) => ({ x: p.anchorX, y: p.anchorY, vx: 0, vy: 0 }));
+  // Starts at the spring node's own resting position — where it was drawn, plus any
+  // initial({x, y}) — with zero velocity, so it sits still and matches its own geometry until
+  // its driver actually moves.
+  const states = pendingSprings.map((p) => ({ x: p.restX, y: p.restY, vx: 0, vy: 0 }));
   const drivers = pendingSprings.map((p) => {
     const driverNode = findSerializedNodeById(scene.children, p.op.driverId);
     const bbox = driverNode ? computeNodeBBox(driverNode) : null;

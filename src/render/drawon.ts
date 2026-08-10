@@ -112,8 +112,15 @@ export function applyDrawOn(
     defs.appendChild(clipPath);
 
     const bbox = bboxOfPoints(points);
-    const rowSpacing = Math.max(6, strokeWidthPx * 1.5);
-    const rows = Math.max(3, Math.min(16, Math.round((bbox.maxY - bbox.minY) / rowSpacing)));
+    const requestedSpacing = Math.max(6, strokeWidthPx * 1.5);
+    const rows = Math.max(3, Math.min(16, Math.round((bbox.maxY - bbox.minY) / requestedSpacing)));
+    // The row count is capped at 16, so on a tall shape the rows end up further apart than the
+    // spacing that was asked for — and a stroke sized to the REQUESTED spacing then can't reach
+    // from one row to the next. The mask keeps thin horizontal gaps in the shape forever (not
+    // just during the reveal), which rendered a 174px sheet of paper as ruled notebook paper for
+    // a whole scene before this was tracked down. Size the stroke to the spacing the rows
+    // actually landed at instead.
+    const rowSpacing = Math.max(requestedSpacing, (bbox.maxY - bbox.minY) / rows);
 
     const scribbleWrap = document.createElementNS(SVG_NS, "g");
     scribbleWrap.setAttribute("clip-path", `url(#${clipId})`);

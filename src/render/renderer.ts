@@ -497,9 +497,27 @@ function applyAnimations(g: SVGGElement, node: SerializedNode, ctx: BuildContext
         tl.to(g, { x: op.x - refX, y: op.y - refY, duration: op.duration ?? 0.6, ease: op.ease ?? "power2.out" }, at);
         break;
       }
-      case "moveBy":
-        tl.to(g, { x: `+=${op.dx}`, y: `+=${op.dy}`, duration: op.duration ?? 0.6, ease: op.ease ?? "power2.out" }, at);
+      case "moveBy": {
+        // Only the axes that actually move get a tween. That looks like a micro-optimization
+        // and isn't: `x: "+=0"` is still a live tween on `x`, so a vertical bob authored as
+        // its own overlapping `moveBy(0, -3)` used to fight the horizontal `moveBy(dx, 0)`
+        // running underneath it — two tweens writing the same property, the later one pinning
+        // it to whatever value it captured when it started. The symptom was silent and awful:
+        // a hand-built walk cycle (body stride + body bob, the obvious way to write one)
+        // covered roughly a tenth of the ground it should have, with no error anywhere.
+        // Skipping the zero axis means the two compose instead of colliding.
+        const vars: Record<string, string | number> = {
+          duration: op.duration ?? 0.6,
+          ease: op.ease ?? "power2.out",
+        };
+        if (op.dx !== 0) vars.x = `+=${op.dx}`;
+        if (op.dy !== 0) vars.y = `+=${op.dy}`;
+        // A genuine no-op still needs to occupy its window on the timeline, so callers can
+        // use moveBy(0, 0) as a beat/hold without it collapsing to zero duration.
+        if (op.dx === 0 && op.dy === 0) vars.x = "+=0";
+        tl.to(g, vars, at);
         break;
+      }
       case "scaleTo":
         tl.to(g, { scale: op.scale, duration: op.duration ?? 0.6, ease: op.ease ?? "power2.out" }, at);
         break;

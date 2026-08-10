@@ -73,6 +73,8 @@ export function lintScene(scene: SerializedScene): LintFinding[] {
     }
   }
 
+  findings.push(...lintCameraBounds(scene));
+
   // Balance/symmetry: centroid of all ink vs canvas center
   if (shapes.length > 0) {
     let sx = 0,
@@ -93,6 +95,54 @@ export function lintScene(scene: SerializedScene): LintFinding[] {
     }
   }
 
+  return findings;
+}
+
+/**
+ * Every `panTo` target checked against the world's own bounds, because a camera framing that
+ * runs off the edge of the world is the single most confusing failure this library produces.
+ * It shows up as a hard-edged "stray pale rectangle" — which is not an artifact at all, just
+ * the backdrop (pinned at depth 0, so it never pans) still covering the frame after the
+ * depth-1 content has run out. It was carried in AGENTS.md as an unexplained renderer bug for
+ * a while on the strength of how little it looks like an authoring mistake.
+ *
+ * `follow` targets aren't checked: where a followed node ends up is only knowable once the
+ * timeline runs, and guessing here would mean false positives on scenes that are fine.
+ */
+function lintCameraBounds(scene: SerializedScene): LintFinding[] {
+  const ops = scene.camera ?? [];
+  if (ops.length === 0) return [];
+  const findings: LintFinding[] = [];
+
+  // Only meaningful when the viewport is actually smaller than the world; a scene whose
+  // viewport IS the world can't pan anywhere revealing.
+  const halfW = scene.viewportWidth / 2;
+  const halfH = scene.viewportHeight / 2;
+  const seen = new Set<string>();
+
+  for (const op of ops) {
+    if (op.kind !== "panTo") continue;
+    const over: string[] = [];
+    if (op.x - halfW < -0.5) over.push("left");
+    if (op.x + halfW > scene.width + 0.5) over.push("right");
+    if (op.y - halfH < -0.5) over.push("top");
+    if (op.y + halfH > scene.height + 0.5) over.push("bottom");
+    if (over.length === 0) continue;
+
+    const key = over.join(",");
+    if (seen.has(key)) continue;
+    seen.add(key);
+    findings.push({
+      level: "warn",
+      message:
+        `camera panTo(${Math.round(op.x)}, ${Math.round(op.y)}) frames past the world's ` +
+        `${over.join(" and ")} edge — the viewport (${scene.viewportWidth}x${scene.viewportHeight}) ` +
+        `reaches outside 0,0..${scene.width},${scene.height}, so bare background will show where ` +
+        `the scene's content runs out. Keep pan targets within ` +
+        `[${Math.round(halfW)}, ${Math.round(scene.width - halfW)}] x ` +
+        `[${Math.round(halfH)}, ${Math.round(scene.height - halfH)}], or extend the world.`,
+    });
+  }
   return findings;
 }
 

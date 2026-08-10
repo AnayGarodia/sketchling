@@ -21,8 +21,14 @@ export interface BoilTarget {
 
 export interface PendingSpring {
   g: SVGGElement;
+  /** The node's own authored bbox centre, with NO transform applied — the reference the
+   * per-frame `gsap.set` converts a desired world position back into a translate against. */
   anchorX: number;
   anchorY: number;
+  /** Where the node actually sits before the spring takes over: the bbox centre plus whatever
+   * `initial({x, y})` translated it by. Distinct from the anchor on purpose — see collectSprings. */
+  restX: number;
+  restY: number;
   op: Extract<AnimOp, { kind: "springTo" }>;
 }
 
