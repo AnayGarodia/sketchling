@@ -5,7 +5,9 @@ let autoId = 0;
 
 export abstract class SketchNode {
   readonly id: string;
-  abstract readonly type: "stroke" | "blob" | "group" | "mesh3d" | "limb" | "connector" | "particles" | "sound";
+  // No separate "blob" member: a Blob subclasses Stroke with its outline points baked at
+  // construction, so it serializes (and renders) as a plain closed stroke.
+  abstract readonly type: "stroke" | "group" | "mesh3d" | "limb" | "connector" | "particles" | "sound";
   style: NodeStyle;
   transform: Transform = { x: 0, y: 0, scale: 1, rotation: 0, opacity: 1 };
   animations: AnimOp[] = [];

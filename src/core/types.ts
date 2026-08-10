@@ -97,7 +97,9 @@ export interface SerializedNode {
   id: string;
   /** Optional author-chosen diagnostic handle, set with node.named("..."). */
   label?: string;
-  type: "stroke" | "blob" | "group" | "mesh3d" | "limb" | "connector" | "particles" | "sound";
+  // No "blob" member: a Blob is a Stroke subclass whose outline is baked at construction,
+  // so it serializes as a plain closed stroke (see node.ts's own type comment).
+  type: "stroke" | "group" | "mesh3d" | "limb" | "connector" | "particles" | "sound";
   points?: Point[];
   closed?: boolean;
   style?: NodeStyle;

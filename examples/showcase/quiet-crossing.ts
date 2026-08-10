@@ -114,11 +114,13 @@ for (const b of branches) {
 tree.drawOn({ at: 0.4, duration: 1.4 });
 
 // A thin sparse reed cluster at the water's edge — the only "detail" allowed near the
-// ground, deliberately understated.
-for (const rx of [40, 55, 68, 585, 600]) {
+// ground, deliberately understated. Alternating lean instead of Math.random(): the same
+// render has to reproduce byte-identically every run, like every other scene here (this
+// was the one example in the repo still rolling real randomness per build).
+for (const [i, rx] of [40, 55, 68, 585, 600].entries()) {
   scene.add(
     sketch.stroke(
-      [[rx, GROUND_Y + 30], [rx + (Math.random() > 0.5 ? 4 : -4), GROUND_Y - 8]],
+      [[rx, GROUND_Y + 30], [rx + (i % 2 === 0 ? 4 : -4), GROUND_Y - 8]],
       { color: "#241f16", weight: "light", looseness: 0.25 }
     )
   ).drawOn({ at: 0.2, duration: 0.6 });

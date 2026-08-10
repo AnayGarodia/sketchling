@@ -30,7 +30,7 @@ export const sketch = {
   blob(cx: number, cy: number, radius: number, style: NodeStyle = {}, vertices = 10): Blob {
     return new Blob(cx, cy, radius, style, vertices);
   },
-  group(children: import("./node.js").SketchNode[] = [], style: NodeStyle = {}): Group {
+  group(children: SketchNode[] = [], style: NodeStyle = {}): Group {
     return new Group(children, style);
   },
   film(opts: FilmOptions = {}): Film {
