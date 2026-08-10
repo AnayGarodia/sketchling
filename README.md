@@ -3,7 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![npm version](https://img.shields.io/npm/v/sketchling.svg)](https://www.npmjs.com/package/sketchling)
 
-A hand drawn illustration and animation language for LLMs. Manim gave language models a way to express math visually in code. Sketchling does the same for expressive, hand drawn illustration and motion.
+A hand drawn illustration and animation language for LLMs. Manim gave language models a way to express math visually in code. Sketchling does the same for expressive, hand drawn illustration and motion — not a diagramming DSL, not a general 3D engine, a vocabulary for drawing and moving things by hand.
 
 ![The Lantern Maker: the closing shot, a lantern released into a night sky over water](docs/hero-lantern-maker.gif)
 
@@ -22,7 +22,18 @@ A few more scenes from the same batch, also built cold, also unedited:
 
 More stills from the same set: [lighthouse watch](docs/showcase-lighthouse-watch.png), [campfire story](docs/showcase-campfire-story.png), [market street](docs/showcase-market-street.png), [summit sunrise](docs/showcase-summit-sunrise.png), [snow village](docs/showcase-snow-village.png), [moonlit sail](docs/showcase-moonlit-sail.png). Full videos for all of these live in [`docs/`](docs/), source in [`examples/showcase/`](examples/showcase/).
 
-Everything above happens to share one visual register — hand-drawn ink, restrained and muted. That's this particular batch's own choice, not a ceiling: the same tools render just as cleanly as crisp ligne-claire line art, cel-shaded 3D, stop-motion, or a pixelated frame, all from the same authored scene (see `look`/`texture` under Core capabilities below).
+Everything above shares one register — hand-drawn ink, restrained and muted — because it's one batch, not a ceiling. Same library, same primitives, different `look`/`texture`, three more coding agents building cold on three unrelated subjects:
+
+<table>
+<tr>
+<td><img src="docs/hero-candy-cave.gif" alt="an 8-bit adventurer discovers a glowing treasure chest in a candy-colored cave, texture: pixel"><br><sub><code>texture: "pixel"</code> — <a href="examples/story/candy-cave.ts">candy-cave.ts</a></sub></td>
+<td><img src="docs/hero-harbor-explorer.gif" alt="porters and cranes on a bustling harbor dock, ligne-claire line art, look: flat"><br><sub><code>look: "flat"</code> — <a href="examples/story/harbor-explorer.ts">harbor-explorer.ts</a></sub></td>
+</tr>
+<tr>
+<td><img src="docs/hero-clay-baker.gif" alt="a clay baker mid-explosion of batter and flour, stop-motion cadence, look: clay"><br><sub><code>look: "clay"</code> — <a href="examples/story/clay-baker.ts">clay-baker.ts</a></sub></td>
+<td>Also real: a toon-shaded 3D toy robot (<a href="examples/showcase/nursery-blocks.ts">nursery-blocks.ts</a>, <code>look: "toon3d"</code>) and a film-grain jazz club with a synthesized score (<a href="examples/story/late-set.ts">late-set.ts</a>, <code>texture: "grain"</code>).</td>
+</tr>
+</table>
 
 ## Install
 
@@ -57,6 +68,19 @@ sketchling render scene.ts --serve
 
 Working inside a clone of this repo instead of a published install? Import from `../src/index.js` in place of `"sketchling"`, or run `npm link` once you have built.
 
+## For coding agents
+
+Every film in this README, including *The Lantern Maker* at the top, was built by handing an agent a prompt like this and nothing else:
+
+```
+Using the sketchling npm package, build a short hand-drawn animated film about
+[subject]. Read AGENTS.md in the package for the full API. Pick a look/texture
+on purpose instead of defaulting to look: "ink". Render it, run
+`sketchling validate`, and fix anything it flags before calling it done.
+```
+
+[AGENTS.md](AGENTS.md) is the actual reference — every primitive, every animation, every gotcha found the hard way, written for an agent to read cold and act on, not summarized marketing copy. It's also installed as `.claude/skills/sketchling/` and `.agents/skills/sketchling/` so it loads automatically in repos that use those conventions.
+
 ## Why this exists
 
 Ask an LLM to hand code an SVG path for a person or a tree and you get something crude. Two choices make hand drawn illustration tractable for a model instead:
@@ -84,7 +108,7 @@ Ask an LLM to hand code an SVG path for a person or a tree and you get something
 
 **Five looks, three textures.** `"ink"`, `"flat"`, `"clay"`, `"lit3d"`, and `"toon3d"` change how geometry itself renders. `"watercolor"`, `"grain"`, and `"pixel"` are an independent whole frame texture layered on top of any of them.
 
-The complete reference for all of this, including every gotcha found the hard way, lives in [AGENTS.md](AGENTS.md). It doubles as the direct prompt for coding agents working in this repo (also available as `.claude/skills/sketchling/` and `.agents/skills/sketchling/`), so it stays accurate rather than drifting from what the library actually does.
+The complete reference for all of this, including every gotcha found the hard way, lives in [AGENTS.md](AGENTS.md) — see "For coding agents" above.
 
 ## How it works
 
@@ -92,7 +116,7 @@ A scene graph is built by running your `scene.ts` in plain Node, no DOM involved
 
 ## Status
 
-Early and opinionated by design. Version 1 targets one aesthetic, flat hand drawn line illustration, rather than trying to be a general purpose illustration engine from day one. The bet is that a small, well designed vocabulary in one register beats a sprawling API that does everything adequately. Broader styles can follow once this one is genuinely good.
+Early and opinionated by design. The bet is a small, well designed vocabulary — primitives with character, not a `Circle()`/`Arc()` geometry API — beats a sprawling one that does everything adequately. Five looks and three textures exist today (`"ink"`, `"flat"`, `"clay"`, `"lit3d"`, `"toon3d"`, `"watercolor"`, `"grain"`, `"pixel"`), because "opinionated" means a small deliberate vocabulary, not one fixed aesthetic — the gallery above is five of them on five unrelated subjects, not one register wearing different clothes.
 
 ## Contributing
 
