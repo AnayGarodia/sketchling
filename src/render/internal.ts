@@ -43,6 +43,14 @@ export interface PendingConnector {
 
 export interface ParticleParams {
   spawnTime: number;
+  // Per-particle, not just a shared emitter-wide spawn point: when the emitter itself has a
+  // `moveTo` path, each particle launches from wherever that path is AT ITS OWN spawnTime,
+  // not the emitter's current position — a trailing dust cloud follows behind its source
+  // instead of the whole trail rigidly snapping to the source's current spot every frame.
+  // Computed once at build time (closed-form: the path is a plain eased lerp, no different
+  // in kind from any other precomputed particle param here), not read live off the DOM.
+  spawnX: number;
+  spawnY: number;
   vx: number;
   vy: number;
   size: number;
@@ -52,11 +60,13 @@ export interface ParticleParams {
 export interface PendingParticleEmitter {
   artGroup: SVGGElement;
   style: NodeStyle;
-  spawnX: number;
-  spawnY: number;
   gravity: number;
   lifetime: number;
   fade: boolean;
+  // "dot" (default): a plain circle, as always. "streak": a short line oriented along the
+  // particle's own instantaneous velocity (recomputed each seek as gravity changes it) —
+  // rain, sparks, anything a round dot reads as snow instead of motion.
+  shape: "dot" | "streak";
   items: ParticleParams[];
 }
 

@@ -189,6 +189,8 @@ function serializeNode(node: SketchNode, labels: Readonly<Record<string, number>
       particlesGravity: node.gravity, particlesLifetime: node.lifetime,
       particlesDuration: node.duration, particlesEmitAt: node.emitAt,
       particlesSizeMin: node.sizeMin, particlesSizeMax: node.sizeMax, particlesFade: node.fade,
+      particlesShape: node.shape, particlesMoveToX: node.moveToX, particlesMoveToY: node.moveToY,
+      particlesMoveToDuration: node.moveToDuration, particlesMoveToEase: node.moveToEase,
     };
   }
   if (node instanceof Sound) {

@@ -6,7 +6,11 @@ import { SVG_NS, type BuildContext, type ParticleParams, type PendingParticleEmi
 
 /** Draws every particle's own params ONCE, in authored order, from one seeded PRNG walked
  * sequentially — deterministic, and independent of anything else in the scene — and records
- * the emitter for buildParticles' per-seek redraw. */
+ * the emitter for buildParticles' per-seek redraw. Each particle's own spawn point is
+ * resolved here too (not deferred to per-seek): if the emitter has a `moveTo` path, that's a
+ * plain eased lerp between two known points over a known duration, evaluable at any time —
+ * including a particle's own spawnTime — the same closed-form guarantee everything else
+ * about a particle already has, no different in kind from its launch angle or speed. */
 export function collectParticles(node: SerializedNode, g: SVGGElement, ctx: BuildContext): SVGGElement {
   const artGroup = document.createElementNS(SVG_NS, "g");
   g.appendChild(artGroup);
@@ -21,6 +25,10 @@ export function collectParticles(node: SerializedNode, g: SVGGElement, ctx: Buil
   const emitAt = node.particlesEmitAt ?? 0;
   const sizeMin = node.particlesSizeMin ?? 2;
   const sizeMax = node.particlesSizeMax ?? 5;
+  const spawnX0 = node.particlesSpawnX ?? 0;
+  const spawnY0 = node.particlesSpawnY ?? 0;
+  const moveToDuration = node.particlesMoveToDuration;
+  const easeFn = moveToDuration != null ? gsap.parseEase(node.particlesMoveToEase ?? "power2.out") : null;
 
   const items: ParticleParams[] = [];
   for (let i = 0; i < count; i++) {
@@ -28,17 +36,35 @@ export function collectParticles(node: SerializedNode, g: SVGGElement, ctx: Buil
     const speed = speedMin + rand() * (speedMax - speedMin);
     const spawnTime = emitAt + (duration > 0 ? rand() * duration : 0);
     const size = sizeMin + rand() * (sizeMax - sizeMin);
-    items.push({ spawnTime, vx: Math.cos(a) * speed, vy: Math.sin(a) * speed, size, seed: baseSeed + i * 7919 + 13 });
+    let spawnX = spawnX0;
+    let spawnY = spawnY0;
+    if (easeFn && moveToDuration != null && node.particlesMoveToX != null && node.particlesMoveToY != null) {
+      // The move path's own clock starts at the emitter's `at` (emitAt), same as the
+      // emitter itself — not absolute t=0 — so it lines up with a source node's own tween
+      // when both are authored with the same `at`/duration (see the doc comment above).
+      const progress = moveToDuration > 0 ? Math.min(1, Math.max(0, (spawnTime - emitAt) / moveToDuration)) : 1;
+      const eased = easeFn(progress);
+      spawnX = spawnX0 + (node.particlesMoveToX - spawnX0) * eased;
+      spawnY = spawnY0 + (node.particlesMoveToY - spawnY0) * eased;
+    }
+    items.push({
+      spawnTime,
+      spawnX,
+      spawnY,
+      vx: Math.cos(a) * speed,
+      vy: Math.sin(a) * speed,
+      size,
+      seed: baseSeed + i * 7919 + 13,
+    });
   }
 
   ctx.pendingParticles.push({
     artGroup,
     style: node.style ?? {},
-    spawnX: node.particlesSpawnX ?? 0,
-    spawnY: node.particlesSpawnY ?? 0,
     gravity: node.particlesGravity ?? 220,
     lifetime: node.particlesLifetime ?? 1.2,
     fade: node.particlesFade ?? true,
+    shape: node.particlesShape ?? "dot",
     items,
   });
   return artGroup;
@@ -82,8 +108,8 @@ export function buildParticles(
         const age = t - p.spawnTime;
         if (age < 0 || age > emitter.lifetime) continue;
 
-        const px = emitter.spawnX + p.vx * age;
-        const py = emitter.spawnY + p.vy * age + 0.5 * emitter.gravity * age * age;
+        const px = p.spawnX + p.vx * age;
+        const py = p.spawnY + p.vy * age + 0.5 * emitter.gravity * age * age;
 
         let opacity = 1;
         if (emitter.fade) {
@@ -95,9 +121,24 @@ export function buildParticles(
 
         const fillColor = flatColorOf(emitter.style.fill?.color, emitter.style.color ?? "#333");
         const opts = roughOptionsFor(emitter.style, p.seed, true, look);
-        opts.fill = fillColor;
-        opts.fillStyle = "solid";
-        const el = rc.circle(px, py, p.size * 2, opts);
+
+        let el: SVGGElement;
+        if (emitter.shape === "streak") {
+          // Oriented along the INSTANTANEOUS velocity (gravity has been bending vy since
+          // launch, same as the position itself) — a falling streak visibly arcs as it
+          // accelerates, not frozen at its launch angle.
+          const vyNow = p.vy + emitter.gravity * age;
+          const speed = Math.hypot(p.vx, vyNow) || 1;
+          const ux = (p.vx / speed) * p.size;
+          const uy = (vyNow / speed) * p.size;
+          opts.stroke = fillColor;
+          opts.strokeWidth = Math.max(1, p.size * 0.4);
+          el = rc.line(px - ux, py - uy, px + ux, py + uy, opts);
+        } else {
+          opts.fill = fillColor;
+          opts.fillStyle = "solid";
+          el = rc.circle(px, py, p.size * 2, opts);
+        }
         el.setAttribute("opacity", String(opacity));
         emitter.artGroup.appendChild(el);
       }

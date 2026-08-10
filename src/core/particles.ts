@@ -16,6 +16,20 @@ export interface ParticleOpts {
   sizeMin?: number;
   sizeMax?: number;
   fade?: boolean; // opacity ramps in then out over each particle's own lifetime; default true
+  // "dot" (default): a plain circle. "streak": a short line along the particle's own
+  // instantaneous velocity direction (recomputed as gravity bends it) — rain, sparks, a
+  // spray of debris; a round dot moving fast still reads as a dot, not motion.
+  shape?: "dot" | "streak";
+  // The emitter's own spawn point moves in a straight line from (x, y) (the constructor's
+  // own spawn point) to here over `duration` seconds, eased the same way any other tween
+  // would be, starting at the SAME `at` this emitter itself starts at (0 if omitted) — not
+  // absolute t=0 — so authoring the same `at`/duration here as a source node's own moveTo
+  // tween mirrors it exactly. Lets particles emit from a moving source (dust trailing a
+  // sailer, sparks off a rising rocket) without re-authoring that same motion a second time
+  // on the particles node. Evaluated once per particle at its own spawn time (closed-form: a
+  // plain eased lerp), so a particle launched early trails behind where the source was then,
+  // not where it currently is.
+  moveTo?: { x: number; y: number; duration: number; ease?: string };
 }
 
 /**
@@ -46,6 +60,11 @@ export class Particles extends SketchNode {
   sizeMin: number;
   sizeMax: number;
   fade: boolean;
+  shape: "dot" | "streak";
+  moveToX?: number;
+  moveToY?: number;
+  moveToDuration?: number;
+  moveToEase?: string;
 
   constructor(x: number, y: number, style: NodeStyle = {}, opts: ParticleOpts = {}) {
     super(style);
@@ -63,6 +82,11 @@ export class Particles extends SketchNode {
     this.sizeMin = opts.sizeMin ?? 2;
     this.sizeMax = opts.sizeMax ?? 5;
     this.fade = opts.fade ?? true;
+    this.shape = opts.shape ?? "dot";
+    this.moveToX = opts.moveTo?.x;
+    this.moveToY = opts.moveTo?.y;
+    this.moveToDuration = opts.moveTo?.duration;
+    this.moveToEase = opts.moveTo?.ease;
   }
 }
 

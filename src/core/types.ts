@@ -200,6 +200,14 @@ export interface SerializedNode {
   particlesSizeMin?: number;
   particlesSizeMax?: number;
   particlesFade?: boolean;
+  particlesShape?: "dot" | "streak";
+  // The emitter's spawn point moving in a straight eased line from (particlesSpawnX,
+  // particlesSpawnY) to (particlesMoveToX, particlesMoveToY) over particlesMoveToDuration
+  // seconds — undefined particlesMoveToDuration means no movement (today's behavior).
+  particlesMoveToX?: number;
+  particlesMoveToY?: number;
+  particlesMoveToDuration?: number;
+  particlesMoveToEase?: string;
   // sound only: one scheduled note or hit — `soundAt` is this node's own absolute scene-
   // timeline position (in Scene-local seconds; a Film shifts it by that entry's own cut
   // offset when collecting audio, the same offset its visual timeline already applies via
