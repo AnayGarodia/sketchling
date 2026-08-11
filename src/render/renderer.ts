@@ -491,8 +491,25 @@ function applyInitialTransform(g: SVGGElement, node: SerializedNode): void {
   // the same node) — subtract the translate here so it's actually true in general. Caught by
   // a walker rig that combined `.initial({x,y})` with `.pivotAt()` on the same group: without
   // this, a small rotation flung the whole shape off-canvas.
-  if (t.pivot) props.svgOrigin = `${t.pivot[0] - t.x} ${t.pivot[1] - t.y}`;
-  else props.transformOrigin = "50% 50%";
+  if (t.pivot) {
+    props.svgOrigin = `${t.pivot[0] - t.x} ${t.pivot[1] - t.y}`;
+  } else {
+    // Percentage transformOrigin resolves against Chromium's default SVG transform-box
+    // (the nearest viewport), not the element's own bbox — a `<g>` with no geometry of its
+    // own (a Group is just a container) has no box for "50% 50%" to mean "my own center"
+    // against, so it silently fell back to the canvas/viewport origin. Two independent
+    // diverse-style sessions hit this the same way: squashTo/rotateTo on a plain Group with
+    // no .pivotAt() scaled/rotated around the SVG origin instead of the group's own bbox
+    // center. Compute that center explicitly, in the same pre-translate local space as the
+    // explicit-pivot branch above, instead of leaning on the browser's default box.
+    const bbox = computeNodeBBox(node);
+    if (bbox) {
+      const [cx, cy] = anchorPoint(bbox, "center");
+      props.svgOrigin = `${cx - t.x} ${cy - t.y}`;
+    } else {
+      props.transformOrigin = "50% 50%";
+    }
+  }
   gsap.set(g, props);
 }
 
