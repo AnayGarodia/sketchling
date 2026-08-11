@@ -1,6 +1,6 @@
 import { sketch } from "../../src/index.js";
 
-// A third scene in the restrained register quiet-crossing.ts / quiet-ride.ts established
+// A fourth scene in the restrained register quiet-crossing.ts / quiet-ride.ts established
 // (muted gradients on every shape, small no-face silhouette figures, patient sine-eased
 // motion, huge negative space, look:"ink" + texture:"grain" for medium character) — moved
 // to a snow-covered village at dusk. The one new idea here is the warm accent against a

@@ -1,5 +1,12 @@
 import { sketch, type Group, type Limb, type NodeStyle, type Scene, type Stroke } from "../../src/index.js";
 
+// A young explorer arrives by steamship at a bustling foreign harbor, wades through dock
+// chaos (porters, cranes, cargo), follows a discovered map to a meeting, and watches the
+// ship depart — six scenes cut together with sketch.film(), built entirely in look: "flat"
+// for a crisp ligne-claire/Tintin-adjacent register instead of the repo's more common
+// look: "ink". One of the diversity batch's five look/texture proof pieces; see AGENTS.md's
+// Look and texture section for what "flat" actually changes.
+
 const W = 640;
 const H = 420;
 const INK = "#17212b";

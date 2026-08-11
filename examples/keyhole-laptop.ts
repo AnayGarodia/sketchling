@@ -1,5 +1,11 @@
 import { sketch } from "../src/index.js";
 
+// The default `npm run demo` scene, and the README's own quick-start snippet's lid shape
+// extended into a full drawing: an open laptop with a keyhole icon centered on its screen,
+// drawn on in four sequential strokes (lid, screen, keyhole head, keyhole body, base).
+// Deliberately minimal — no animation beyond drawOn timing — as the smallest complete
+// "here's what a sketchling scene looks like" example in the repo.
+
 const scene = sketch.scene({ width: 480, height: 420, background: "#7096c6", seed: "keyhole-laptop" });
 
 const ink = "#15130f";

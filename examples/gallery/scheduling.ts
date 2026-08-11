@@ -3,11 +3,11 @@ import { sketch } from "../../src/index.js";
 // Gallery demo for scene.label() + node.endAt — the fix for the single most convergent
 // complaint across five independent stress tests of this library: past a handful of beats,
 // a scene becomes a wall of hand-computed `at` literals that silently go stale the moment
-// anything upstream is retimed. One real example (examples/story/wound-sun/04-the-snap.ts,
-// built cold by an agent testing this library before this feature existed) wound a crank,
-// captured the wind's own end time in a bare variable (`const SNAP = windCrank(...)`), then
-// referenced `SNAP + 0.05`, `SNAP + 0.62`, `SNAP + 0.78`... across a dozen ops for the
-// gear-tooth snap and the keeper's reaction — working, but unnamed and easy to miscount.
+// anything upstream is retimed. One real example (a since-removed film built cold by an
+// agent testing this library before this feature existed) wound a crank, captured the
+// wind's own end time in a bare variable (`const SNAP = windCrank(...)`), then referenced
+// `SNAP + 0.05`, `SNAP + 0.62`, `SNAP + 0.78`... across a dozen ops for the gear-tooth snap
+// and the keeper's reaction — working, but unnamed and easy to miscount.
 // Same shape here, with scene.label() naming the moment instead of a bare variable, and
 // node.endAt chaining the wind-up itself without hand-summing its own steps.
 

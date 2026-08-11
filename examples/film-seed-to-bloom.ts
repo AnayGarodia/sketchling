@@ -1,5 +1,10 @@
 import { sketch } from "../src/index.js";
 
+// Three small scenes (a seed planted, a first sprout, a full bloom under a sun) cut
+// together with sketch.film() — a minimal end-to-end demo of the cut/hold/fade transition
+// vocabulary itself, one cut and one crossfade, rather than a narrative piece in its own
+// right. See examples/story/ for full multi-scene films built the same way at real scale.
+
 const ink = "#2b2115";
 const soil = "#8a5a34";
 const soilDark = "#6b4a2d";

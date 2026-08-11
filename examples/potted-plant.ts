@@ -1,5 +1,9 @@
 import { sketch } from "../src/index.js";
 
+// A terracotta pot with a three-leaf plant, drawn on stroke by stroke (pot, rim, stem, two
+// leaves) — a small still-life with no animation beyond the drawOn sequence itself, useful
+// as a quick render-and-look sanity check since it has no timing/physics to go wrong.
+
 const scene = sketch.scene({ width: 420, height: 420, background: "#f0ead8", seed: "potted-plant" });
 
 const ink = "#211d17";

@@ -1,5 +1,11 @@
 import { sketch } from "../../src/index.js";
 
+// A toy robot stacks wooden blocks into a wobbling tower in a sunlit nursery, until it
+// finally topples — built entirely in look: "toon3d" (mesh3d nodes only, no 2D primitives,
+// no camera, no particles/sound — see AGENTS.md's Look and texture section) to prove the
+// toon-shaded 3D pipeline can carry a full narrative short on its own, not just one
+// spinning shape. One of the diversity batch's five look/texture proof pieces.
+
 const W = 960;
 const H = 540;
 const INK = "#2d3445";
