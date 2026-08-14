@@ -4,7 +4,7 @@
 // each step happens — sucrase in place of esbuild, a blob module in place of a Node import.
 import { transform } from "sucrase";
 import type * as Sketchling from "./lib-entry.js";
-import type { Renderable } from "./lib-entry.js";
+import type { Renderable, SerializedNode, SerializedScene } from "./lib-entry.js";
 
 export type Lib = typeof Sketchling;
 
@@ -89,11 +89,35 @@ function contractFindings(lib: Lib, renderable: Renderable): Diagnostic[] {
       : renderable.entries.flatMap((entry, i) =>
           lib.lintScene(entry.scene).map((f) => ({ level: f.level, message: `[scene ${i}] ${withNode(f.message, f.nodeId)}` }))
         );
-  return [...validation, ...lint];
+  return [...validation, ...lint, ...playgroundNotes(renderable)];
 }
 
 function withNode(message: string, nodeId?: string): string {
   return nodeId && !message.includes(nodeId) ? `${message} (${nodeId})` : message;
+}
+
+function someNode(nodes: SerializedNode[] | undefined, predicate: (node: SerializedNode) => boolean): boolean {
+  return (nodes ?? []).some((node) => predicate(node) || someNode(node.children, predicate));
+}
+
+/** The two things a scene can ask for that this page genuinely cannot do, said out loud
+ * rather than left as a silent difference from what the CLI would produce. */
+function playgroundNotes(renderable: Renderable): Diagnostic[] {
+  const scenes: SerializedScene[] = renderable.kind === "film" ? renderable.entries.map((entry) => entry.scene) : [renderable];
+  const notes: Diagnostic[] = [];
+  if (scenes.some((scene) => scene.texture === "pixel")) {
+    notes.push({
+      level: "info",
+      message: 'texture: "pixel" is a raster post-process the CLI runs on the captured frame, not an SVG filter — this page shows the unpixelated render.',
+    });
+  }
+  if (scenes.some((scene) => someNode(scene.children, (node) => node.type === "sound"))) {
+    notes.push({
+      level: "info",
+      message: "sketch.sound() is silent here: audio is synthesized when the CLI muxes a video.",
+    });
+  }
+  return notes;
 }
 
 export async function buildScene(source: string): Promise<BuildResult> {

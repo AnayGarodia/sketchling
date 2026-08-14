@@ -35,6 +35,13 @@ Everything above shares one register — hand-drawn ink, restrained and muted �
 </tr>
 </table>
 
+## Playground
+
+[**anaygarodia.github.io/sketchling**](https://anaygarodia.github.io/sketchling/) runs the whole
+vocabulary in a browser tab: write a scene, watch it draw itself, scrub the timeline, share a
+render as a link. It is the same renderer the CLI drives, not a cut down demo — source and notes
+in [`site/`](site/).
+
 ## Install
 
 ```
