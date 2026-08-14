@@ -24,29 +24,50 @@ import("./gallery/loop.mjs").then((m) => {
   console.log(`FPS=${m.CLIP_FPS}`);
   console.log(`LOOP_START=${m.LOOP_START}`);
   console.log(`LOOP_LEN=${m.LOOP_LEN}`);
+  // A third of the way into the cycle, not its first frame: anything that falls, drifts or
+  // ripples is transparent exactly at the seam (which is how those motions close a loop at
+  // all), so a still rendered there is a still with the rain missing.
+  console.log(`STILL_AT=${m.LOOP_START + m.LOOP_LEN / 3}`);
   console.log(`START_FRAME=${start}`);
   console.log(`END_FRAME=${start + Math.round(m.LOOP_LEN * m.CLIP_FPS)}`);
 });
 ')"
-export LOOP_START WORK
+export STILL_AT WORK
 
 # Every scene in gallery/scenes/, minus the leading-underscore convention for shared
 # non-scene files (the same rule scripts/smoke-render.mjs uses on examples/).
 scenes() { find "$SCENES_DIR" -name '*.ts' -not -name '_*' | sort; }
 picks() { grep -v -e '^[[:space:]]*#' -e '^[[:space:]]*$' "$PICKS"; }
 
+# Rendered a third of the way into the loop window (see STILL_AT above). A worker that fails
+# leaves its stderr behind as <name>.err,
+# which is also how the caller counts failures after waiting — simpler and more portable than
+# collecting exit codes from background pids (and BSD xargs -I can't take a script this long).
+render_still() {
+  local scene="$1" name
+  name=$(basename "$scene" .ts)
+  if node bin/sketchling.js render "$scene" --at "$STILL_AT" --out "$WORK/stills/$name.png" --json >/dev/null 2>"$WORK/stills/$name.err"; then
+    echo "    ok   $name"
+    rm -f "$WORK/stills/$name.err"
+  else
+    echo "    FAIL $name (see $WORK/stills/$name.err)"
+  fi
+}
+
 stills() {
   mkdir -p "$WORK/stills"
+  rm -f "$WORK"/stills/*.err
   echo "==> rendering $(scenes | wc -l | tr -d ' ') scenes to $WORK/stills (JOBS=$JOBS)"
-  # Rendered --at the first frame of the loop window: the settled drawing, which is also
-  # exactly the frame each clip opens on. A failure in any worker fails the build.
-  scenes | xargs -P "$JOBS" -I@ bash -c '
-    name=$(basename "@" .ts)
-    if node bin/sketchling.js render "@" --at "$LOOP_START" --out "$WORK/stills/$name.png" --json >/dev/null 2>"$WORK/stills/$name.err"; then
-      echo "    ok   $name"; rm -f "$WORK/stills/$name.err"
-    else
-      echo "    FAIL $name (see $WORK/stills/$name.err)"; exit 1
-    fi'
+  local n=0
+  for scene in $(scenes); do
+    render_still "$scene" &
+    n=$((n + 1))
+    if [ $((n % JOBS)) -eq 0 ]; then wait; fi
+  done
+  wait
+  local failed
+  failed=$(find "$WORK/stills" -name '*.err' | wc -l | tr -d ' ')
+  if [ "$failed" != "0" ]; then echo "==> $failed scene(s) FAILED to render"; return 1; fi
 }
 
 clips() {
@@ -84,16 +105,43 @@ clips() {
   echo "==> $CLIPS total: $(du -sh "$CLIPS" | cut -f1 | tr -d ' ')"
 }
 
+# Rewrites index.html's clip grid in place, between its two marker comments, so the page can't
+# drift out of sync with picks.txt. Everything else in that file is hand-written.
+page() {
+  local tmp="$WORK/index.html.tmp"
+  mkdir -p "$WORK"
+  {
+    awk '{ print } /<!-- CLIPS:BEGIN -->/ { exit }' gallery/index.html
+    for name in $(picks); do
+      printf '        <figure>\n'
+      printf '          <video src="clips/%s.mp4" autoplay loop muted playsinline preload="metadata"></video>\n' "$name"
+      printf '          <figcaption>%s</figcaption>\n' "$name"
+      printf '        </figure>\n'
+    done
+    awk '/<!-- CLIPS:END -->/ { f = 1 } f' gallery/index.html
+  } >"$tmp"
+  mv "$tmp" gallery/index.html
+  echo "==> wrote $(picks | wc -l | tr -d ' ') figures into gallery/index.html"
+}
+
 sheets() {
   mkdir -p "$WORK/sheets"
-  echo "==> contact sheets for the picks"
-  picks | xargs -P "$JOBS" -I@ node bin/sketchling.js contact-sheet "$SCENES_DIR/@.ts" --out "$WORK/sheets/@.png"
+  echo "==> contact sheets (6 frames each) for the picks"
+  local n=0
+  for name in $(picks); do
+    node bin/sketchling.js contact-sheet "$SCENES_DIR/$name.ts" --out "$WORK/sheets/$name.png" >/dev/null &
+    n=$((n + 1))
+    if [ $((n % JOBS)) -eq 0 ]; then wait; fi
+  done
+  wait
+  echo "    -> $WORK/sheets"
 }
 
 case "${1:-all}" in
-  all) npm run build; stills; clips ;;
+  all) npm run build; stills; clips; page ;;
   stills) stills ;;
-  clips) clips ;;
+  clips) clips; page ;;
+  page) page ;;
   sheets) sheets ;;
-  *) echo "usage: gallery/build.sh [all|stills|clips|sheets]" >&2; exit 2 ;;
+  *) echo "usage: gallery/build.sh [all|stills|clips|page|sheets]" >&2; exit 2 ;;
 esac

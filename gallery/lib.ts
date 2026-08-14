@@ -96,9 +96,37 @@ export function ripple(node: SketchNode, to = 1.6, n = 2, peak = 0.55): void {
   }
 }
 
-/** Something that travels (dx, dy) over and over — a raindrop, a petal, a spark, a bubble.
- * Same trick as `ripple`: it fades out before the end of each beat and flies back to its
- * start invisible, so a one-way motion becomes a cycle. */
+/** Non-uniform scale pulsing to (sx, sy) and back — breathing, a bellows, a heartbeat.
+ * `.pivotAt()` the node first if it should swell from its base instead of its middle. */
+export function pulseSquash(node: SketchNode, sx: number, sy: number, n = 2, ease = "sine.inOut"): void {
+  for (const { at, dur } of beats(n)) {
+    node.squashTo(sx, sy, { at, duration: dur / 2, ease });
+    node.squashTo(1, 1, { at: at + dur / 2, duration: dur / 2, ease });
+  }
+}
+
+/** One pass of something travelling (dx, dy) and fading as it goes, over a single beat — a
+ * raindrop, a petal, a spark, a rising "z". It flies back to its start during the tail of the
+ * beat, by which point it is fully transparent, so a one-way motion becomes a cycle. Take the
+ * beat from `beats(n)`, which is what makes staggering several of these across the loop (a
+ * different beat each, rather than all of them in lockstep) a one-liner. */
+export function driftOnce(
+  node: SketchNode,
+  dx: number,
+  dy: number,
+  beat: { at: number; dur: number },
+  opts: { ease?: string; peak?: number } = {}
+): void {
+  const { ease = "none", peak = 1 } = opts;
+  const { at, dur } = beat;
+  node.initial({ opacity: 0 });
+  node.moveBy(dx, dy, { at, duration: dur * 0.8, ease });
+  node.moveBy(-dx, -dy, { at: at + dur * 0.8, duration: dur * 0.2, ease: "none" });
+  node.fadeTo(peak, { at, duration: dur * 0.15, ease: "none" });
+  node.fadeTo(0, { at: at + dur * 0.6, duration: dur * 0.2, ease: "none" });
+}
+
+/** `driftOnce` on every beat — the same node falling/rising over and over. */
 export function fallLoop(
   node: SketchNode,
   dx: number,
@@ -106,14 +134,7 @@ export function fallLoop(
   n = 2,
   opts: { ease?: string; peak?: number } = {}
 ): void {
-  const { ease = "none", peak = 1 } = opts;
-  node.initial({ opacity: 0 });
-  for (const { at, dur } of beats(n)) {
-    node.moveBy(dx, dy, { at, duration: dur * 0.8, ease });
-    node.moveBy(-dx, -dy, { at: at + dur * 0.8, duration: dur * 0.2, ease: "none" });
-    node.fadeTo(peak, { at, duration: dur * 0.15, ease: "none" });
-    node.fadeTo(0, { at: at + dur * 0.6, duration: dur * 0.2, ease: "none" });
-  }
+  for (const beat of beats(n)) driftOnce(node, dx, dy, beat, opts);
 }
 
 /** `laps` complete circuits of a closed path across the loop window — a fish circling, a bee

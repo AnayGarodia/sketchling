@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>sketchling — twelve loops</title>
+    <style>
+      :root {
+        --paper: #f3eee2;
+        --ink: #211d17;
+        --muted: #6d6555;
+        --rule: #dcd4c2;
+      }
+      * { box-sizing: border-box; }
+      html { -webkit-text-size-adjust: 100%; }
+      body {
+        margin: 0;
+        background: var(--paper);
+        color: var(--ink);
+        font: 15px/1.55 ui-sans-serif, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        padding: 56px 24px 88px;
+      }
+      .wrap { max-width: 1040px; margin: 0 auto; }
+      header { border-bottom: 1px solid var(--rule); padding-bottom: 22px; margin-bottom: 34px; }
+      h1 { font-size: 20px; font-weight: 600; letter-spacing: 0.01em; margin: 0 0 6px; }
+      .tag { color: var(--muted); margin: 0 0 18px; max-width: 56ch; }
+      .meta { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; font-size: 13px; }
+      .meta a { color: var(--ink); text-decoration: none; border-bottom: 1px solid #b9b0a0; }
+      .meta a:hover { border-bottom-color: var(--ink); }
+      code {
+        font: 12.5px/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        background: #e8e1d1;
+        border: 1px solid var(--rule);
+        border-radius: 4px;
+        padding: 4px 7px;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(216px, 1fr));
+        gap: 26px 22px;
+      }
+      figure { margin: 0; }
+      video {
+        display: block;
+        width: 100%;
+        aspect-ratio: 1 / 1;
+        background: #e8e1d1;
+        border: 1px solid var(--rule);
+        border-radius: 3px;
+      }
+      figcaption {
+        margin-top: 9px;
+        font: 12.5px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        color: var(--muted);
+      }
+      footer { margin-top: 56px; padding-top: 20px; border-top: 1px solid var(--rule); color: var(--muted); font-size: 13px; }
+      footer a { color: var(--muted); }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header>
+        <h1>sketchling — twelve loops</h1>
+        <p class="tag">
+          Twelve seamless clips, each one a TypeScript scene rendered by
+          <a href="https://github.com/AnayGarodia/sketchling">sketchling</a> — a hand-drawn illustration and
+          animation language. Nothing here was drawn by hand or edited in a timeline; every frame comes out of
+          the source file beside it.
+        </p>
+        <div class="meta">
+          <code>npm install -g sketchling</code>
+          <a href="https://github.com/AnayGarodia/sketchling">github.com/AnayGarodia/sketchling</a>
+          <a href="scenes/">scene sources</a>
+          <a href="curate.md">how these twelve were chosen</a>
+        </div>
+      </header>
+
+      <!-- Everything between the two markers is written by gallery/build.sh from picks.txt.
+           Edit the markers, not the figures. -->
+      <div class="grid">
+        <!-- CLIPS:BEGIN -->
+        <figure>
+          <video src="clips/koi-pond.mp4" autoplay loop muted playsinline preload="metadata"></video>
+          <figcaption>koi-pond</figcaption>
+        </figure>
+        <!-- CLIPS:END -->
+      </div>
+
+      <footer>
+        Each clip is a 3.3s loop cut from its scene's own timeline, so it repeats without a seam.
+        Regenerate everything with <code>gallery/build.sh</code>.
+      </footer>
+    </div>
+  </body>
+</html>
