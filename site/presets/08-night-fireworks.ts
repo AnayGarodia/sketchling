@@ -43,8 +43,11 @@ for (const b of bursts) {
       gravity: 190,
       lifetime: 1.5,
       at: b.at,
-      sizeMin: 2,
-      sizeMax: 5,
+      sizeMin: 3,
+      sizeMax: 6,
+      // Each spark is drawn as a short line along its own velocity, re-aimed as gravity
+      // bends the arc — a round dot travelling fast still reads as a dot, not as motion.
+      shape: "streak",
     }
   );
   scene.add(burst);

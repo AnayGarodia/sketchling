@@ -1,5 +1,33 @@
 # Changelog
 
+## Unreleased
+
+**Playground (`site/`)**
+
+- An in-browser playground, deployed to GitHub Pages from `main`: a TypeScript editor, the
+  live animation with a transport, ten example scenes, and a Share button that puts the whole
+  scene in the URL hash. No install, no server, nothing to sign up for.
+- It reuses the renderer rather than reimplementing it. `mountRenderable` — the same entry
+  point the CLI's Playwright harness calls — plus `validateRenderable` and `lintScene`, so a
+  scene looks and reports exactly as it does through `sketchling render`. Playback is a rAF
+  loop over the renderer's own `seekTo`, so scrubbing anywhere is as exact as `--at`.
+- `npm run build:site` bundles it (esbuild), `npm run site` serves it, `npm run test:site`
+  drives it through headless Chromium — a browser test in CI's browser job, asserting on
+  pixels rather than DOM node counts. Presets are real scene files in `site/presets/`, so the
+  CLI can validate and render them like any other example.
+- Two things the page can't do, and now says so in its own diagnostics rather than differing
+  silently: `texture: "pixel"` (a raster post-process the CLI applies to a captured frame) and
+  `sketch.sound()` (synthesized at video-mux time).
+
+**Findings**
+
+- `docs/notes/finding-transform-origin.md` — a node with no `pivotAt` rotates and scales
+  around the canvas's `(0, 0)` corner rather than around itself, because `transformOrigin` is
+  set on a `<g>` that is still empty and detached. Reported with a repro, the root cause and
+  two candidate fixes; unfixed, because the fix changes the rendered output of most of
+  `examples/`. Until then, pass `pivotAt` for any rotate or scale (AGENTS.md and both
+  `SKILL.md` copies now say so).
+
 ## 0.5.0
 
 Driven by real feedback: five independent sessions (three on Claude Fable, two on GPT-5.6 Sol)
