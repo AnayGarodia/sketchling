@@ -127,6 +127,35 @@ describe("playground", () => {
     await page.close();
   });
 
+  test("picking an example renders it exactly once", async () => {
+    const { page, errors } = await open();
+    const before = await renderCount(page);
+    await page.selectOption("#preset", "clay-bounce");
+    await waitForRender(page, before);
+    // Longer than the keystroke debounce: setting the document programmatically is a change
+    // like any other, so a second render would land here if run() didn't cancel it.
+    await page.waitForTimeout(1200);
+    assert.equal(await renderCount(page), before + 1);
+    assert.deepEqual(errors, []);
+    await page.close();
+  });
+
+  test("with auto-run off, only the Run button renders", async () => {
+    const { page, errors } = await open();
+    await page.uncheck("#autorun");
+    const before = await renderCount(page);
+    await page.click(".cm-content");
+    await page.keyboard.type("\n// edited\n");
+    await page.waitForTimeout(1200);
+    assert.equal(await renderCount(page), before, "a keystroke should not render with auto-run off");
+
+    await page.click("#run");
+    await waitForRender(page, before);
+    assert.equal(await page.evaluate(() => document.body.dataset.render), "ok");
+    assert.deepEqual(errors, []);
+    await page.close();
+  });
+
   test("every example in the picker renders non-empty artwork", async () => {
     const { page, errors } = await open();
     const ids = await page.$$eval("#preset option", (options) => options.map((o) => o.value));

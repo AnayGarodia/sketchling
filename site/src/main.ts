@@ -107,6 +107,10 @@ function finishRun(state: "ok" | "failed"): void {
 }
 
 async function run(): Promise<void> {
+  // Any explicit run supersedes a keystroke-scheduled one. Without this, loading a preset
+  // (or a shared link) renders twice: setting the document counts as a change, so the
+  // debounced run fires 700ms behind the immediate one and remounts the same scene.
+  clearTimeout(debounce);
   const token = ++runToken;
   const source = editor.state.doc.toString();
   document.body.dataset.render = "pending";

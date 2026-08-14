@@ -99,7 +99,8 @@ a:hover {
 .bar {
   display: flex;
   align-items: center;
-  gap: 14px;
+  flex-wrap: wrap;
+  gap: 8px 14px;
   padding: 8px 16px;
   min-height: 44px;
 }
@@ -136,7 +137,8 @@ header.bar {
   margin-left: auto;
   display: flex;
   align-items: center;
-  gap: 12px;
+  flex-wrap: wrap;
+  gap: 8px 12px;
   font-size: 13px;
 }
 
@@ -168,6 +170,7 @@ header.bar {
   gap: 7px;
   color: var(--fg-dim);
   font-size: 13px;
+  white-space: nowrap;
 }
 
 .check {
@@ -188,7 +191,7 @@ select {
   border-radius: 5px;
   background: var(--panel);
   font-size: 13px;
-  max-width: 21em;
+  max-width: min(21em, 60vw);
 }
 
 button {
@@ -363,21 +366,19 @@ footer.bar {
     grid-template-columns: minmax(0, 1fr);
   }
 
+  /* One column: the animation goes first. It is the thing worth seeing on arrival, and the
+     source is a scroll away rather than the other way round. */
   .pane.render {
+    order: -1;
     border-left: 0;
-    border-top: 1px solid var(--edge);
+    border-bottom: 1px solid var(--edge);
   }
 
   #editor {
-    height: 44vh;
+    height: 46vh;
   }
 
   .stage {
-    min-height: 40vh;
-  }
-
-  .brand p,
-  .install {
-    display: none;
+    min-height: 36vh;
   }
 }
