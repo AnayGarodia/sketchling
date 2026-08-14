@@ -1,0 +1,2 @@
+# The twelve picks, one scene name per line — see curate.md for how they were chosen.
+koi-pond
