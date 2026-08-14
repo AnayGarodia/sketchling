@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>sketchling playground</title>
+    <meta
+      name="description"
+      content="Write sketchling scenes in the browser and watch them draw themselves. A hand-drawn animation language for LLMs."
+    />
+    <link rel="stylesheet" href="playground.css" />
+  </head>
+  <body>
+    <header class="chrome bar">
+      <div class="brand">
+        <h1>sketchling</h1>
+        <p>a hand-drawn animation language for LLMs</p>
+      </div>
+      <div class="meta">
+        <code class="install"
+          >npm install -g sketchling<button id="copy-install" class="ghost" title="Copy to clipboard">copy</button></code
+        >
+        <a href="https://github.com/AnayGarodia/sketchling">GitHub</a>
+        <button id="theme" class="ghost" aria-label="Switch colour theme">Dark</button>
+      </div>
+    </header>
+
+    <div class="chrome bar toolbar">
+      <label class="field">
+        <span>Example</span>
+        <select id="preset"></select>
+      </label>
+      <span class="grow"></span>
+      <label class="field check"><input type="checkbox" id="autorun" checked /><span>auto-run</span></label>
+      <button id="run" class="primary">Run <kbd>⌘↵</kbd></button>
+      <button id="share" class="ghost">Share</button>
+    </div>
+
+    <main>
+      <section class="pane" aria-label="Scene source">
+        <div id="editor"></div>
+      </section>
+      <section class="pane render" aria-label="Rendered scene">
+        <div id="stage" class="stage"><p class="placeholder">Loading the renderer…</p></div>
+        <div class="chrome bar transport">
+          <button id="play" class="ghost" disabled>Play</button>
+          <input id="scrub" type="range" min="0" max="1000" value="0" step="1" disabled aria-label="Timeline position" />
+          <span id="clock" class="clock">0.00 / 0.00s</span>
+        </div>
+      </section>
+    </main>
+
+    <div id="diagnostics" class="diagnostics" role="status" hidden></div>
+
+    <footer class="chrome bar">
+      <span id="status" class="status"></span>
+      <span class="grow"></span>
+      <span
+        >Same renderer the CLI drives, running in this tab.
+        <a href="https://github.com/AnayGarodia/sketchling/blob/main/AGENTS.md">API reference</a></span
+      >
+    </footer>
+
+    <script type="module" src="vendor/playground.js"></script>
+  </body>
+</html>
