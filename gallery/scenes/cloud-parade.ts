@@ -141,7 +141,7 @@ swayMove(gulls, 7, -6, 2);
 // means the lower lane is occupied for nearly the whole loop with only two clouds in it.
 const passers: [number, number, number, number, number, { at: number; dur: number }][] = [
   [80, 304, 136, 56, 318, beats(1)[0]],
-  [64, 354, 100, 42, 214, beats(2)[1]],
+  [64, 338, 100, 42, 282, beats(2)[1]],
 ];
 passers.forEach(([cx, cy, w, h, dx, beat]) => {
   const passer = cloud(cx, cy, w, h, "#fbfdfe", "#96b5c9");

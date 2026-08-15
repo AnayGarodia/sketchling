@@ -25,7 +25,7 @@
 // `rotateTo`, `scaleTo`, `fadeTo`) need their final target to equal the resting value, which
 // is what every helper below is careful to do. `gallery/check-loop.sh` proves it either way.
 
-import type { SketchNode } from "../src/index.js";
+import type { Group, SketchNode } from "../src/index.js";
 import { CLIP_FPS, LOOP_END, LOOP_LEN, LOOP_START } from "./loop.mjs";
 
 export { CLIP_FPS, LOOP_END, LOOP_LEN, LOOP_START };
@@ -196,9 +196,12 @@ export function blink(node: SketchNode, at: number, close = 0.1): void {
   node.squashTo(1, 1, { at: at + 0.09, duration: 0.12, ease: "power2.out" });
 }
 
-/** Draws a list of shapes on one after another, spread evenly across [from, to] so the
- * whole reveal always lands before the loop window opens no matter how many shapes there
- * are. Returns the time the last one finishes. */
+/** Draws a list of shapes on one after another, spread across [from, to] — where `to` is when
+ * the LAST one FINISHES, not when it starts. That distinction is the whole point of budgeting
+ * this here instead of at every call site: a reveal whose tail crosses LOOP_START breaks the
+ * seam, because the loop's first frame then holds a half-drawn shape with the reveal mask still
+ * cutting into it while its last frame holds the finished one. It is nearly invisible to the eye
+ * and cost several scenes a failing check-loop before this function owned the arithmetic. */
 export function drawIn(
   nodes: SketchNode[],
   opts: { from?: number; to?: number; each?: number; ease?: string } = {}
@@ -206,25 +209,48 @@ export function drawIn(
   const { from = 0, to = LOOP_START - 0.1, ease } = opts;
   const n = nodes.length;
   if (n === 0) return from;
-  const step = n > 1 ? (to - from) / n : to - from;
-  const each = opts.each ?? Math.min(0.6, step * 1.35);
+  const span = Math.max(0, to - from);
+  const each = Math.min(opts.each ?? Math.min(0.6, (span / n) * 1.35), span);
+  const step = n > 1 ? (span - each) / (n - 1) : 0;
   nodes.forEach((node, i) => node.drawOn({ at: from + i * step, duration: each, ease }));
   return from + (n - 1) * step + each;
 }
 
 /** Fades a list of shapes in together but not quite — a short stagger, for the many small
- * scattered things (stars, grass, dots) that a one-at-a-time drawIn would spend the whole
- * reveal budget on. */
+ * scattered things (stars, grass, dots, petals) that a one-at-a-time `drawIn` would spend the
+ * whole reveal budget on. Same contract as `drawIn`: `to` is when the last one has finished
+ * fading in, its own tail included. */
 export function appearIn(
   nodes: SketchNode[],
   opts: { from?: number; to?: number; each?: number } = {}
 ): number {
-  const { from = 0.2, to = LOOP_START - 0.4, each = 0.5 } = opts;
+  const { from = 0.2, to = LOOP_START - 0.2 } = opts;
   const n = nodes.length;
   if (n === 0) return from;
-  const step = n > 1 ? (to - from) / n : 0;
+  const span = Math.max(0, to - from);
+  const each = Math.min(opts.each ?? 0.5, span);
+  const step = n > 1 ? (span - each) / (n - 1) : 0;
   nodes.forEach((node, i) => node.appear({ at: from + i * step, duration: each }));
   return from + (n - 1) * step + each;
+}
+
+/** `group.stagger()` with the same "everything has finished by `to`" contract the two above
+ * have. Worth reaching for instead of a bare `stagger(each, { at, duration })`, whose reveal
+ * actually ends at `at + (n-1)*each + duration`: a 20-slat windmill staggered at 0.03 with a
+ * 0.45s draw runs for a full second, which is exactly how a reveal scheduled to start at 2.1s
+ * ends up still running when the loop opens. */
+export function staggerIn(
+  group: Group,
+  opts: { from?: number; to?: number; each?: number; effect?: "drawOn" | "appear"; ease?: string } = {}
+): number {
+  const { from = 0, to = LOOP_START - 0.1, effect = "drawOn", ease } = opts;
+  const n = group.children.length;
+  if (n === 0) return from;
+  const span = Math.max(0, to - from);
+  const each = Math.min(opts.each ?? 0.06, n > 1 ? span / n : span);
+  const duration = Math.max(0.05, span - each * (n - 1));
+  group.stagger(each, { at: from, duration, effect, ease });
+  return from + each * (n - 1) + duration;
 }
 
 /** mulberry32 — a seeded PRNG, so a scattered field (stars, grass, rain) is the same field

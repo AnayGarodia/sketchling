@@ -205,7 +205,11 @@ appearIn(feet, { from: 2.5, to: 2.8, each: 0.2 });
 throat.pivotAt(240, 332);
 pulseSquash(throat, 1.12, 1.34, 3);
 
-// One blink, tucked between the second and third croak so it doesn't compete with either.
+// One blink, tucked between the second and third croak so it doesn't compete with either. The
+// pivot is load-bearing: with none set, a group's squash resolves its origin from a bbox that
+// isn't the one on screen, and the irises slide clean out of the domes. Pinned to the eyeline,
+// they close inside them.
+irises.pivotAt(240, 250);
 blink(irises, LOOP_START + 1.95);
 
 // --- The rock: 1.5 degrees, pivoted below the pad at the waterline, which is where a floating

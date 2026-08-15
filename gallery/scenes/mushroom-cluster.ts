@@ -51,10 +51,12 @@ scene.add(floorNode).drawOn({ at: 0, duration: 0.7 });
 // They are here for the upper half of the frame: without them the composition is one heavy
 // band at the bottom and 150px of nothing above it.
 ([
-  [78, 352, 44, 196, 3],
-  [108, 348, 130, 184, -2.5],
-  [412, 356, 446, 206, -3],
-  [432, 360, 398, 222, 2.5],
+  [58, 350, 24, 198, 3],
+  [84, 352, 104, 184, -2.5],
+  [106, 350, 72, 230, 2],
+  [402, 356, 442, 200, -3],
+  [426, 358, 396, 214, 2.5],
+  [446, 362, 468, 238, -2],
 ] as [number, number, number, number, number][]).forEach(([bx, by, tx, ty, deg], i) => {
   const blade = sketch.stroke(
     [
@@ -62,9 +64,10 @@ scene.add(floorNode).drawOn({ at: 0, duration: 0.7 });
       [bx + (tx - bx) * 0.3, by - (by - ty) * 0.55],
       [tx, ty],
     ],
-    { color: "#4e6438", weight: "confident", looseness: 0.24, energy: "calm" }
+    { color: "#46603a", weight: "bold", looseness: 0.24, energy: "calm" }
   );
-  scene.add(blade).drawOn({ at: 0.15 + i * 0.14, duration: 0.4 });
+  // Blades crossing each other IS the clump — the overlap warning here is the effect, not a bug.
+  scene.add(blade).lintIgnore("overlap").drawOn({ at: 0.15 + i * 0.1, duration: 0.35 });
   blade.pivotAt(bx, by);
   swayRotate(blade, deg, i % 2 === 0 ? 2 : 3);
 });
@@ -127,7 +130,7 @@ const mossMounds = ([
   }, 11).lintIgnore("overlap")
 );
 mossMounds.forEach((m) => scene.add(m));
-appearIn(mossMounds, { from: 1.5, to: 1.9, each: 0.35 });
+appearIn(mossMounds, { from: 1.25, to: 1.65, each: 0.35 });
 
 // --- A mushroom is four shapes: a dark underside, a stem, the cap over both, and spots. The
 // underside goes down FIRST and slightly low, so the cap covering its top half leaves exactly
@@ -175,12 +178,14 @@ function mushroom(cx: number, capY: number, rx: number, ry: number, baseY: numbe
   });
   g.add(cap.lintIgnore("overlap"));
 
+  // Spots spread most of the dome's width and drop with it toward the rim, so they sit ON a
+  // curved surface — bunched in the middle they read as one white smear instead.
   for (let i = 0; i < spots; i++) {
     const t = (i + 1) / (spots + 1);
-    const sx = cx + (t - 0.5) * rx * 1.3;
-    const sy = capY - ry * (0.62 - Math.abs(t - 0.5) * 0.8);
+    const sx = cx + (t - 0.5) * rx * 1.55;
+    const sy = capY - ry * (0.58 - Math.abs(t - 0.5) * 1.1);
     g.add(
-      sketch.blob(sx, sy, 9, { color: "#e6d3ab", weight: "light", looseness: 0.3, fill: { color: FLESH, style: "solid" } }, 9)
+      sketch.blob(sx, sy, 9, { color: "#dcc79c", weight: "light", looseness: 0.3, fill: { color: FLESH, style: "solid" } }, 9)
         .lintIgnore("overlap")
     );
   }
@@ -200,7 +205,10 @@ const capNodes: { node: ReturnType<typeof mushroom>["cap"]; x: number; y: number
 shrooms.forEach(({ cx, capY, rx, ry, base, color, spots, sway, n }, i) => {
   const { g, cap, capBottom } = mushroom(cx, capY, rx, ry, base, color, spots);
   scene.add(g);
-  g.stagger(0.09, { at: 1.85 + i * 0.26, duration: 0.34 });
+  // Budget the stagger so the LAST child of the LAST mushroom still finishes before the loop
+  // opens: a `stagger` whose tail crosses LOOP_START leaves a half-drawn cap on the loop's
+  // first frame with the moss behind it showing through, and the seam misses by that much.
+  g.stagger(0.08, { at: 1.7 + i * 0.24, duration: 0.3 });
   // Pivoted where the stem meets the log: a mushroom leans from the wood it is rooted in, and
   // rotating about its own bbox centre would slide the stem off the log.
   g.pivotAt(cx, base);
@@ -216,26 +224,35 @@ capNodes.forEach(({ node, x, y }, i) => {
   pulseSquash(node, 1.02 + i * 0.006, 0.982, i % 2 === 0 ? 2 : 3);
 });
 
-// --- The event of the loop: spores letting go and rising. Negative dy, one per beat so the
-// drift is a continuous trickle rather than five motes moving in formation, and each restarts
-// at its cap while it is fully transparent (see driftOnce in lib.ts).
-const sporeBeats = beats(5);
+// --- The event of the loop: spores letting go and rising. Negative dy, and each mote flies
+// back to its cap during the tail of its own beat while it is fully transparent (driftOnce).
+//
+// Split across a 3-beat and a 4-beat rhythm rather than all onto one: driftOnce only shows a
+// node for the first ~60% of its beat, so eight motes on four beats left a third of the loop
+// with an empty sky. Two rhythms overlap into a continuous trickle, and being out of phase is
+// what makes it read as spores rather than as a row of bubbles on a conveyor.
+const fast = beats(4);
+const slow = beats(3);
 ([
-  [136, 232, 7, -150, 26],
-  [176, 228, 6, -132, -22],
-  [244, 288, 6, -118, 20],
-  [320, 320, 7, -134, -18],
-  [392, 346, 5, -108, 24],
-  [278, 300, 6, -124, 30],
+  [130, 240, 8, -152, 26],
+  [168, 234, 7, -138, -20],
+  [190, 226, 6, -126, 22],
+  [232, 292, 7, -122, -18],
+  [256, 286, 6, -134, 24],
+  [300, 322, 7, -128, -22],
+  [330, 318, 6, -116, 20],
+  [392, 348, 6, -108, 26],
 ] as [number, number, number, number, number][]).forEach(([x, y, r, dy, dx], i) => {
+  // A pale rim, not the scene ink: a dark ring around a 7px disc reads as a soap bubble.
   const spore = sketch.ellipse(x, y, r, r, {
-    color: "#6d5f45",
+    color: "#a89877",
     weight: "light",
     looseness: 0.2,
-    fill: { color: "#f6efdb", style: "solid" },
+    fill: { color: "#f8f2e0", style: "solid" },
   });
   scene.add(spore).lintIgnore("overlap");
-  driftOnce(spore, dx, dy, sporeBeats[i % 5], { ease: "sine.out", peak: 0.85 });
+  const beat = i % 2 === 0 ? fast[(i / 2) % 4] : slow[((i - 1) / 2) % 3];
+  driftOnce(spore, dx, dy, beat, { ease: "sine.out", peak: 0.9 });
 });
 
 export default scene;

@@ -165,6 +165,10 @@ swayRotate(headGroup, 2.5, 2);
 
 // Two blinks, deliberately unevenly spaced across the window — a metronome blink reads as a
 // machine. Both are inside the loop and return to (1, 1), so neither touches the seam.
+// The pivot is load-bearing: with none set, a group's squash resolves its origin from a bbox
+// that isn't the one on screen, and the lids slide up off the skull instead of closing. Pinned
+// to the eyeline, they shut where the eyes actually are.
+eyes.pivotAt(240, 219);
 blink(eyes, LOOP_START + 0.75);
 blink(eyes, LOOP_START + 2.15);
 

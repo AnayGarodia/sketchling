@@ -21,27 +21,44 @@ cd "$(dirname "$0")/.."
 START=$(node -e 'import("./gallery/loop.mjs").then(m => console.log(m.LOOP_START))')
 END=$(node -e 'import("./gallery/loop.mjs").then(m => console.log(m.LOOP_END))')
 OUT=gallery/work/loop-check
+JOBS="${JOBS:-1}" # set JOBS>1 to check a whole batch of scenes concurrently
 mkdir -p "$OUT"
 
-fail=0
-for scene in "$@"; do
+check_one() {
+  local scene="$1" name psnr
   name=$(basename "$scene" .ts)
-  node bin/sketchling.js render "$scene" --at "$START" --out "$OUT/$name-a.png" --quiet-lint >/dev/null || { echo "$name: RENDER FAILED"; fail=1; continue; }
-  node bin/sketchling.js render "$scene" --at "$END" --out "$OUT/$name-b.png" --quiet-lint >/dev/null || { echo "$name: RENDER FAILED"; fail=1; continue; }
+  rm -f "$OUT/$name.fail"
+  node bin/sketchling.js render "$scene" --at "$START" --out "$OUT/$name-a.png" --quiet-lint >/dev/null 2>&1 &&
+    node bin/sketchling.js render "$scene" --at "$END" --out "$OUT/$name-b.png" --quiet-lint >/dev/null 2>&1 || {
+      echo "$name: RENDER FAILED"; touch "$OUT/$name.fail"; return
+    }
   if cmp -s "$OUT/$name-a.png" "$OUT/$name-b.png"; then
     echo "$name: loop closes (frames at ${START}s and ${END}s are byte-identical)"
-    rm -f "$OUT/$name-a.png" "$OUT/$name-b.png"
-    continue
+    rm -f "$OUT/$name-a.png" "$OUT/$name-b.png" "$OUT/$name-diff.png"
+    return
   fi
   psnr=$(ffmpeg -loglevel info -i "$OUT/$name-a.png" -i "$OUT/$name-b.png" -filter_complex psnr -f null - 2>&1 | grep -o 'average:[0-9.]*' | head -1 | cut -d: -f2)
   if [ -n "$psnr" ] && awk "BEGIN{exit !($psnr >= 55)}"; then
-    echo "$name: loop closes (${psnr}dB — sub-pixel antialiasing on a 360-degree turn, see header)"
-    rm -f "$OUT/$name-a.png" "$OUT/$name-b.png"
-    continue
+    echo "$name: loop closes (${psnr}dB — sub-pixel antialiasing, see header)"
+    rm -f "$OUT/$name-a.png" "$OUT/$name-b.png" "$OUT/$name-diff.png"
+    return
   fi
   ffmpeg -loglevel error -y -i "$OUT/$name-a.png" -i "$OUT/$name-b.png" \
     -filter_complex "blend=all_mode=difference,format=gray,eq=contrast=8" -frames:v 1 "$OUT/$name-diff.png"
   echo "$name: LOOP SEAM DIFFERS (${psnr:-no psnr}dB) -> $OUT/$name-diff.png"
-  fail=1
+  touch "$OUT/$name.fail"
+}
+
+n=0
+for scene in "$@"; do
+  check_one "$scene" &
+  n=$((n + 1))
+  if [ $((n % JOBS)) -eq 0 ]; then wait; fi
 done
-exit $fail
+wait
+
+failed=$(find "$OUT" -name '*.fail' | wc -l | tr -d ' ')
+if [ "$failed" != "0" ]; then
+  echo "==> $failed scene(s) do not close their loop"
+  exit 1
+fi

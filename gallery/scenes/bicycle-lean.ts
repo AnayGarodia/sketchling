@@ -1,5 +1,5 @@
 import { sketch } from "../../src/index.js";
-import { beats, driftOnce, drawIn, spin, swayRotate } from "../lib.js";
+import { beats, driftOnce, drawIn, spin, staggerIn, swayRotate } from "../lib.js";
 
 // A parked bicycle whose front wheel is still spinning from being flicked, basket flowers nodding.
 
@@ -147,16 +147,20 @@ scene.add(
   const whole = sketch.group([stem, bloom]);
   scene.add(whole);
   stem.drawOn({ at: 2.5 + i * 0.1, duration: 0.25 });
-  bloom.stagger(0.05, { at: 2.65 + i * 0.1, duration: 0.3, effect: "appear" });
+  // staggerIn, not a bare stagger: a bare one finishes at at + (n-1)*each + duration, which for
+  // six petals left the last one still fading in at 3.4s — a third of a second INTO the loop
+  // window. The loop's first frame then holds a half-faded petal where its last frame holds a
+  // whole one; invisible to the eye, and exactly what check-loop caught here at 35.8dB.
+  staggerIn(bloom, { from: 2.6 + i * 0.08, to: 2.95, effect: "appear" });
   whole.pivotAt(bx, by);
   swayRotate(whole, 2.5 + i * 0.8, i === 1 ? 3 : 2);
 });
 
 // --- The loop's event: the front wheel, still turning from a flick, plus a leaf tumbling
-// past it. Two turns across the window reads as "slowing, not stopped"; the rear wheel's
-// quarter-turn is the drivetrain being dragged along by the chain.
+// past it. Two turns across the window reads as "slowing, not stopped".
 spin(front, 2);
-spin(rear, 0.25);
+// The rear wheel stays put: a parked bike has nothing driving it, and a quarter turn would
+// also leave it 90 degrees from where the loop started.
 
 const leaf = sketch.loop(
   [[420, 128], [432, 137], [426, 156], [413, 147]],

@@ -88,83 +88,83 @@ flowers.forEach(([bx, by, topY, petalColor, petalLight, deg], i) => {
 // a full 2*pi), which is what `lapAlong` needs to come back to its own first frame.
 const CX = 240;
 const CY = 196;
+// PHASE puts t=0 at the lemniscate's own crossing point, which is the frame's centre — so the
+// loop's FIRST frame (the one a contact sheet or a grid thumbnail lands on) has the bee dead
+// centre over the middle flower instead of parked out at one lobe's tip.
+const PHASE = Math.PI / 2;
 const eight: [number, number][] = Array.from({ length: 41 }, (_, i) => {
-  const t = (i / 40) * Math.PI * 2;
+  const t = PHASE + (i / 40) * Math.PI * 2;
   const s = Math.sin(t);
   const c = Math.cos(t);
   const d = 1 + s * s;
   return [CX + (140 * c) / d, CY + (250 * s * c) / d];
 });
 
-// The bee is authored at the path's own start point (the right lobe's outer edge) so its
-// reveal happens where the loop will pick it up, not somewhere it then teleports from.
+// The bee is authored at the path's own start point, so its reveal happens exactly where the
+// loop will pick it up rather than somewhere it then teleports from. S scales the whole insect
+// from one number: drawn at its "correct" 60px it vanished at thumbnail size.
 const BX = eight[0][0];
 const BY = eight[0][1];
+const S = 1.3;
+const bp = (dx: number, dy: number): [number, number] => [BX + dx * S, BY + dy * S];
 
 const bee = sketch.group();
 const abdomen = sketch.loop(
-  [
-    [BX - 33, BY - 2],
-    [BX - 26, BY - 17],
-    [BX - 4, BY - 24],
-    [BX + 20, BY - 19],
-    [BX + 30, BY - 3],
-    [BX + 21, BY + 16],
-    [BX - 3, BY + 22],
-    [BX - 26, BY + 15],
-  ],
+  [bp(-33, -2), bp(-26, -17), bp(-4, -24), bp(20, -19), bp(30, -3), bp(21, 16), bp(-3, 22), bp(-26, 15)],
   { color: INK, weight: "bold", looseness: 0.24, fill: { color: sketch.shade(BEE_YELLOW, { from: "top", amount: 0.3 }), style: "solid" } }
 );
 bee.add(abdomen);
 
-// Three bands, drawn as strokes that follow the body's curve. A bumblebee is unmistakable from
-// its stripes alone, which is what has to survive at thumbnail size.
-for (const dx of [-16, 1, 17]) {
+// Three bands, following the body's curve. A bumblebee is unmistakable from its stripes alone,
+// which is what has to survive at thumbnail size — but at "bold" they ate the yellow entirely
+// and the bee read as a black bean, hence "confident".
+for (const dx of [-17, 1, 18]) {
   bee.add(
-    sketch.stroke([[BX + dx + 1, BY - 20], [BX + dx - 2, BY - 1], [BX + dx + 1, BY + 18]], {
-      color: INK, weight: "bold", looseness: 0.2,
+    sketch.stroke([bp(dx + 1, -20), bp(dx - 2, -1), bp(dx + 1, 18)], {
+      color: INK, weight: "confident", looseness: 0.2,
     }).lintIgnore("overlap")
   );
 }
 // Stinger, sharp corners so smooth:false.
 bee.add(
-  sketch.loop([[BX - 32, BY - 3], [BX - 48, BY + 3], [BX - 31, BY + 9]], {
+  sketch.loop([bp(-32, -3), bp(-48, 3), bp(-31, 9)], {
     color: INK, weight: "confident", looseness: 0.18, fill: { color: "#2b2420", style: "solid" }, smooth: false,
   }).lintIgnore("overlap")
 );
 // Legs, dangling — a hovering bee never tucks them.
 for (const [lx, ly, tx, ty] of [[-8, 19, -16, 33], [4, 21, 1, 36], [16, 15, 20, 31]] as [number, number, number, number][]) {
-  bee.add(
-    sketch.stroke([[BX + lx, BY + ly], [BX + tx, BY + ty]], { color: "#3a2f22", weight: "confident", looseness: 0.3 }).lintIgnore("overlap")
-  );
+  bee.add(sketch.stroke([bp(lx, ly), bp(tx, ty)], { color: "#3a2f22", weight: "confident", looseness: 0.3 }).lintIgnore("overlap"));
 }
 // Head last of the body parts, dropped into the thorax so there is no gap at the join.
-const head = sketch.blob(BX + 32, BY - 3, 16, {
+const head = sketch.blob(BX + 32 * S, BY - 3 * S, 16 * S, {
   color: INK, weight: "bold", looseness: 0.2, fill: { color: "#2f2823", style: "solid" },
 }, 11);
 bee.add(head.lintIgnore("overlap"));
 bee.add(
-  sketch.ellipse(BX + 38, BY - 7, 7, 6, { color: "#1c1712", weight: "light", looseness: 0, fill: { color: "#f4ecd2", style: "solid" } }, 12).lintIgnore("overlap")
+  sketch.ellipse(BX + 38 * S, BY - 8 * S, 8 * S, 7 * S, { color: "#1c1712", weight: "light", looseness: 0, fill: { color: "#f4ecd2", style: "solid" } }, 12).lintIgnore("overlap")
 );
 for (const [ax, ay, bx2, by2] of [[34, -15, 54, -30], [38, -12, 60, -20]] as [number, number, number, number][]) {
   bee.add(
-    sketch.stroke([[BX + ax, BY + ay], [BX + (ax + bx2) / 2 + 4, BY + (ay + by2) / 2 - 6], [BX + bx2, BY + by2]], {
+    sketch.stroke([bp(ax, ay), bp((ax + bx2) / 2 + 4, (ay + by2) / 2 - 6), bp(bx2, by2)], {
       color: INK, weight: "confident", looseness: 0.25,
     }).lintIgnore("overlap")
   );
 }
 
-// --- Wings: not drawn as membranes at all, but as two pale ellipses — at a bumblebee's ~200Hz
-// there is nothing to see but blur, and an outlined wing would read as frozen.
+// --- Wings: not drawn as membranes at all, but as two pale ellipses — at a bumblebee's beat
+// rate there is nothing to see but blur, and an outlined wing would read as frozen.
 const wings = sketch.group([
-  sketch.ellipse(BX - 6, BY - 30, 30, 14, { color: "#9dc2d4", weight: "light", looseness: 0, fill: { color: "#dff0f899", style: "solid" } }, 18).lintIgnore("overlap"),
-  sketch.ellipse(BX + 13, BY - 23, 20, 9, { color: "#9dc2d4", weight: "light", looseness: 0, fill: { color: "#e8f4fa99", style: "solid" } }, 16).lintIgnore("overlap"),
+  sketch.ellipse(BX - 6 * S, BY - 30 * S, 30 * S, 14 * S, { color: "#9dc2d4", weight: "light", looseness: 0, fill: { color: "#dff0f899", style: "solid" } }, 18).lintIgnore("overlap"),
+  sketch.ellipse(BX + 13 * S, BY - 23 * S, 20 * S, 9 * S, { color: "#9dc2d4", weight: "light", looseness: 0, fill: { color: "#e8f4fa99", style: "solid" } }, 16).lintIgnore("overlap"),
 ]);
 bee.add(wings);
 
 scene.add(bee);
-drawIn([abdomen, head], { from: 2.1, to: 2.55, each: 0.3 });
-appearIn(bee.children.filter((c) => c !== abdomen && c !== head), { from: 2.35, to: 2.85, each: 0.25 });
+drawIn([abdomen, head], { from: 2.0, to: 2.45, each: 0.3 });
+// `to: 2.85` here spilled the last of eleven staggered children past LOOP_START, which left the
+// loop's first frame with a half-faded leg and its last frame with a whole one — a seam miss
+// check-loop.sh catches and the eye does not. Everything lands by 2.9.
+appearIn(bee.children.filter((c) => c !== abdomen && c !== head), { from: 2.3, to: 2.7, each: 0.22 });
 
 // --- Two whole laps of the eight across the window. `turn: 0` on purpose: a bumblebee's body
 // stays roughly level whatever direction it drifts, and banking a nearly-round silhouette into
@@ -173,7 +173,7 @@ lapAlong(bee, eight, 2);
 
 // The wing beat: 22 pulses across the window, hinged at the wing root rather than the ellipse's
 // own middle, so the blur fans from the shoulder instead of pumping in place.
-wings.pivotAt(BX + 4, BY - 16);
+wings.pivotAt(BX + 4 * S, BY - 16 * S);
 pulseSquash(wings, 1.05, 0.42, 22);
 
 export default scene;

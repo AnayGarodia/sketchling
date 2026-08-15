@@ -95,7 +95,7 @@ export function mount(scene: SerializedScene, container: HTMLElement): MountResu
       // continuously — quantizing the seek time itself, rather than anything per-shape,
       // so every downstream system (camera, drawOn, IK) just sees time move in discrete
       // jumps and needs no look-specific handling of its own.
-      const st = look === "clay" ? Math.floor(t / CLAY_FRAME_HOLD) * CLAY_FRAME_HOLD : t;
+      const st = look === "clay" ? quantizeClay(t) : t;
       tl.seek(st, false);
       applyBoilAt(boilTargets, st);
       // Runs strictly after the seek has fully resolved every other tween — see
@@ -108,6 +108,21 @@ export function mount(scene: SerializedScene, container: HTMLElement): MountResu
 }
 
 const CLAY_FRAME_HOLD = 1 / 10; // ~10fps — a stop-motion cadence, not a continuous tween
+
+/**
+ * Which stop-motion hold a given time falls in. The epsilon is not cosmetic: 0.1 has no exact
+ * binary representation, so `6.3 / 0.1` is 62.99999999999999 and a bare `Math.floor` puts a
+ * seek at t=6.3 into hold 62 — showing the pose from 6.2, a tenth of a second of motion
+ * earlier. That is wrong on its own terms (6.3 is exactly 63 holds), and it silently defeats
+ * anything that asks for a specific moment on a whole tenth: two independent scenes built
+ * against a fixed 3.3s loop window couldn't close their loops in "clay" because the window's
+ * last frame rendered one hold short of the end while its first frame rendered exactly on time.
+ * Nudging by well under a hold before flooring resolves an exact multiple to itself and leaves
+ * every other time in the same hold it was already in.
+ */
+function quantizeClay(t: number): number {
+  return Math.floor(t / CLAY_FRAME_HOLD + 1e-9) * CLAY_FRAME_HOLD;
+}
 
 /**
  * A Film is several scenes cut together into one render — each scene keeps its own local
