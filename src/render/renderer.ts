@@ -3,7 +3,7 @@ import gsap from "gsap";
 import { MorphSVGPlugin } from "gsap/MorphSVGPlugin";
 import { MotionPathPlugin } from "gsap/MotionPathPlugin";
 import type { Renderable, SerializedFilm, SerializedNode, SerializedScene } from "../core/types.js";
-import { pathFromPoints, anchorPoint } from "../core/geometry.js";
+import { pathFromPoints, anchorPoint, nodeBBox } from "../core/geometry.js";
 import { mountLit3D } from "./renderer3d.js";
 import { roughOptionsFor, strokeWidthOf, effectiveFillStyle } from "./style.js";
 import {
@@ -95,7 +95,7 @@ export function mount(scene: SerializedScene, container: HTMLElement): MountResu
       // continuously — quantizing the seek time itself, rather than anything per-shape,
       // so every downstream system (camera, drawOn, IK) just sees time move in discrete
       // jumps and needs no look-specific handling of its own.
-      const st = look === "clay" ? Math.floor(t / CLAY_FRAME_HOLD) * CLAY_FRAME_HOLD : t;
+      const st = look === "clay" ? quantizeClay(t) : t;
       tl.seek(st, false);
       applyBoilAt(boilTargets, st);
       // Runs strictly after the seek has fully resolved every other tween — see
@@ -108,6 +108,21 @@ export function mount(scene: SerializedScene, container: HTMLElement): MountResu
 }
 
 const CLAY_FRAME_HOLD = 1 / 10; // ~10fps — a stop-motion cadence, not a continuous tween
+
+/**
+ * Which stop-motion hold a given time falls in. The epsilon is not cosmetic: 0.1 has no exact
+ * binary representation, so `6.3 / 0.1` is 62.99999999999999 and a bare `Math.floor` puts a
+ * seek at t=6.3 into hold 62 — showing the pose from 6.2, a tenth of a second of motion
+ * earlier. That is wrong on its own terms (6.3 is exactly 63 holds), and it silently defeats
+ * anything that asks for a specific moment on a whole tenth: two independent scenes built
+ * against a fixed 3.3s loop window couldn't close their loops in "clay" because the window's
+ * last frame rendered one hold short of the end while its first frame rendered exactly on time.
+ * Nudging by well under a hold before flooring resolves an exact multiple to itself and leaves
+ * every other time in the same hold it was already in.
+ */
+function quantizeClay(t: number): number {
+  return Math.floor(t / CLAY_FRAME_HOLD + 1e-9) * CLAY_FRAME_HOLD;
+}
 
 /**
  * A Film is several scenes cut together into one render — each scene keeps its own local
@@ -491,24 +506,40 @@ function applyInitialTransform(g: SVGGElement, node: SerializedNode): void {
   // the same node) — subtract the translate here so it's actually true in general. Caught by
   // a walker rig that combined `.initial({x,y})` with `.pivotAt()` on the same group: without
   // this, a small rotation flung the whole shape off-canvas.
-  if (t.pivot) {
-    props.svgOrigin = `${t.pivot[0] - t.x} ${t.pivot[1] - t.y}`;
-  } else {
-    // Percentage transformOrigin resolves against Chromium's default SVG transform-box
-    // (the nearest viewport), not the element's own bbox — a `<g>` with no geometry of its
-    // own (a Group is just a container) has no box for "50% 50%" to mean "my own center"
-    // against, so it silently fell back to the canvas/viewport origin. Two independent
-    // diverse-style sessions hit this the same way: squashTo/rotateTo on a plain Group with
-    // no .pivotAt() scaled/rotated around the SVG origin instead of the group's own bbox
-    // center. Compute that center explicitly, in the same pre-translate local space as the
-    // explicit-pivot branch above, instead of leaning on the browser's default box.
-    const bbox = computeNodeBBox(node);
+  if (t.pivot) props.svgOrigin = `${t.pivot[0] - t.x} ${t.pivot[1] - t.y}`;
+  else {
+    // No pivot means "turn and scale about your own centre", which is what every doc comment
+    // in this library promises — but `transformOrigin: "50% 50%"` CANNOT deliver it here.
+    // GSAP resolves that percentage into a fixed point immediately, against getBBox() of an
+    // element that at this point in buildNode is still empty and not yet in the document:
+    // children, the rough.js art group, and (later) drawOn's own pen-tip circle are all
+    // appended after this call. An empty bbox resolves the origin to 0,0 — the SVG origin —
+    // so every unpivoted rotateTo/rotateBy/scaleTo/squashTo silently orbited or scaled about
+    // the canvas's top-left corner instead of the shape. Measured on a 60px square drawn at
+    // (140, 360): rotateTo(45) landed it at roughly (-155, 353), i.e. fully off-canvas; a
+    // wheel group given a full-turn spin() left frame entirely. It went unnoticed for as long
+    // as it did because the two cases that hide it are the common ones — anything that needs
+    // a joint pivots explicitly, and a 360-degree turn returns to identity no matter where
+    // its origin is, so it only misbehaves mid-tween.
+    //
+    // The authored geometry answers the same question with no DOM and no build-order
+    // dependency, and gives the same bbox centre moveTo/moveAlong already anchor to (see
+    // scene-query.ts's computeNodeBBox), so a node's rotation centre and its placement
+    // reference are now the same point by construction. The translate comes off it for the
+    // same reason the explicit-pivot branch above subtracts it: authored geometry and an
+    // authored pivot live in the same pre-translate space, so a node that combines
+    // `.initial({x, y})` with an unpivoted rotation would otherwise turn about a centre
+    // displaced by exactly that translate.
+    const bbox = nodeBBox(node);
     if (bbox) {
       const [cx, cy] = anchorPoint(bbox, "center");
       props.svgOrigin = `${cx - t.x} ${cy - t.y}`;
-    } else {
-      props.transformOrigin = "50% 50%";
     }
+    // Nodes with no authored 2D geometry of their own (mesh3d, limb, connector, particles)
+    // keep the percentage fallback: their visual extent isn't knowable from `points` at all,
+    // and each is animated through its own dedicated op (spin3d, ikTo) rather than by a
+    // rotateTo about a centre.
+    else props.transformOrigin = "50% 50%";
   }
   gsap.set(g, props);
 }

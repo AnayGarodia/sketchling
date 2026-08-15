@@ -1,0 +1,15 @@
+# The twelve picks, chosen by rendering all 48 scenes and judging the output.
+# Order is the order they appear in index.html's grid, arranged so the page alternates
+# dark and light rather than clumping all the night scenes together.
+record-player
+jack-o-lantern
+crab-sidestep
+orbit-rings
+cat-nap
+pendulum-clock
+bouncing-ball
+dripping-tap
+penguin-waddle
+wind-in-wheat
+notification-bell
+windmill-field
