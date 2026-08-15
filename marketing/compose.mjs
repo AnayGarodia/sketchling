@@ -28,6 +28,9 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 
 const PROMPT = "illustrate a potted plant waking up in the morning sun";
 const FILENAME = "morning-plant.ts";
+// What a viewer would type against a published install. marketing/build.sh runs the same
+// command through this checkout's own bin/ and asks for a raw .y4m instead of an .mp4, for
+// the generation-loss reason documented there.
 const COMMAND = `sketchling render ${FILENAME} --video ${FILENAME.replace(/\.ts$/, ".mp4")} --fps 30`;
 const END = {
   wordmark: "sketchling",
