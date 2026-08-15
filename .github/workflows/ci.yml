@@ -58,3 +58,8 @@ jobs:
       # example by hand.
       - name: Smoke-render every example
         run: node scripts/smoke-render.mjs
+
+      # Builds site/ and drives the playground through the same Chromium: it renders in a
+      # page, not through the CLI, so nothing above would catch it breaking.
+      - name: Playground
+        run: npm run test:site

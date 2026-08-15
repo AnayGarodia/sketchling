@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+**Playground (`site/`)**
+
+- An in-browser playground, deployed to GitHub Pages from `main`: a TypeScript editor, the
+  live animation with a transport, ten example scenes, and a Share button that puts the whole
+  scene in the URL hash. No install, no server, nothing to sign up for.
+- It reuses the renderer rather than reimplementing it. `mountRenderable` — the same entry
+  point the CLI's Playwright harness calls — plus `validateRenderable` and `lintScene`, so a
+  scene looks and reports exactly as it does through `sketchling render`. Playback is a rAF
+  loop over the renderer's own `seekTo`, so scrubbing anywhere is as exact as `--at`.
+- `npm run build:site` bundles it (esbuild), `npm run site` serves it, `npm run test:site`
+  drives it through headless Chromium — a browser test in CI's browser job, asserting on
+  pixels rather than DOM node counts. Presets are real scene files in `site/presets/`, so the
+  CLI can validate and render them like any other example.
+- Two things the page can't do, and now says so in its own diagnostics rather than differing
+  silently: `texture: "pixel"` (a raster post-process the CLI applies to a captured frame) and
+  `sketch.sound()` (synthesized at video-mux time).
+
 **Fixes**
 
 - **A node with no `pivotAt` now actually rotates and scales about its own centre.** It was
@@ -17,6 +34,12 @@
   full 360-degree turn returns to identity regardless of its origin, so an unpivoted `spin`
   only misbehaves mid-tween. `sketch.walk`'s "un-pivoted arms visibly detach" note was this
   bug, not a limitation of arm rigging.
+
+**Findings**
+
+- `docs/notes/finding-transform-origin.md` — the report the fix above came out of: written
+  while building the playground, with the repro and root cause, then fixed rather than left
+  standing. Kept because the reasoning is the useful part.
 
 ## 0.5.0
 

@@ -1,0 +1,384 @@
+/* The chrome stays quiet on purpose: the animations are the only thing here worth looking
+   at. Colours live in custom properties so the CodeMirror theme (site/src/editor.ts) can
+   reference the same tokens instead of shipping a second palette. */
+
+:root {
+  --bg: #fbfaf8;
+  --panel: #ffffff;
+  --edge: #e3ded4;
+  --fg: #26231d;
+  --fg-dim: #6d675c;
+  --accent: #a4462c;
+  --sel: #dbe6f0;
+  --active: #f4f1ea;
+  --error: #a3301c;
+  --warn: #8a6412;
+  --info: #4f6b7a;
+  --syn-keyword: #8a3a86;
+  --syn-string: #256a4a;
+  --syn-number: #9a5518;
+  --syn-comment: #8b8577;
+  --syn-fn: #2b5b96;
+  --syn-type: #6b4a9b;
+  --syn-op: #6d675c;
+}
+
+:root[data-theme="dark"] {
+  --bg: #16171a;
+  --panel: #1c1e22;
+  --edge: #2e3238;
+  --fg: #e2e0da;
+  --fg-dim: #948f86;
+  --accent: #e0866a;
+  --sel: #2b3a4a;
+  --active: #23262b;
+  --error: #f08a72;
+  --warn: #d9b45e;
+  --info: #8fb0c0;
+  --syn-keyword: #d290cf;
+  --syn-string: #86c9a2;
+  --syn-number: #e0a86a;
+  --syn-comment: #7e7a71;
+  --syn-fn: #8ab4e8;
+  --syn-type: #b79ce8;
+  --syn-op: #a9a49b;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #16171a;
+    --panel: #1c1e22;
+    --edge: #2e3238;
+    --fg: #e2e0da;
+    --fg-dim: #948f86;
+    --accent: #e0866a;
+    --sel: #2b3a4a;
+    --active: #23262b;
+    --error: #f08a72;
+    --warn: #d9b45e;
+    --info: #8fb0c0;
+    --syn-keyword: #d290cf;
+    --syn-string: #86c9a2;
+    --syn-number: #e0a86a;
+    --syn-comment: #7e7a71;
+    --syn-fn: #8ab4e8;
+    --syn-type: #b79ce8;
+    --syn-op: #a9a49b;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto auto;
+  background: var(--bg);
+  color: var(--fg);
+  font: 14px/1.45 ui-sans-serif, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: inherit;
+  text-decoration-color: var(--edge);
+  text-underline-offset: 2px;
+}
+
+a:hover {
+  text-decoration-color: currentColor;
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  padding: 8px 16px;
+  min-height: 44px;
+}
+
+header.bar {
+  border-bottom: 1px solid var(--edge);
+  gap: 12px;
+}
+
+.brand {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+
+.brand h1 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.brand p {
+  margin: 0;
+  color: var(--fg-dim);
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.meta {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  font-size: 13px;
+}
+
+.install {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 4px 3px 8px;
+  border: 1px solid var(--edge);
+  border-radius: 5px;
+  background: var(--panel);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  color: var(--fg-dim);
+  white-space: nowrap;
+}
+
+.toolbar {
+  border-bottom: 1px solid var(--edge);
+}
+
+.grow {
+  flex: 1;
+}
+
+.field {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--fg-dim);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.check {
+  cursor: pointer;
+  user-select: none;
+}
+
+select,
+button,
+input[type="range"] {
+  font: inherit;
+  color: inherit;
+}
+
+select {
+  padding: 4px 6px;
+  border: 1px solid var(--edge);
+  border-radius: 5px;
+  background: var(--panel);
+  font-size: 13px;
+  max-width: min(21em, 60vw);
+}
+
+button {
+  padding: 5px 11px;
+  border: 1px solid var(--edge);
+  border-radius: 5px;
+  background: var(--panel);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  border-color: var(--fg-dim);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+button.primary {
+  border-color: var(--fg);
+}
+
+button.ghost {
+  color: var(--fg-dim);
+}
+
+kbd {
+  font: inherit;
+  font-size: 11px;
+  color: var(--fg-dim);
+  padding-left: 2px;
+}
+
+main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  min-height: 0;
+}
+
+.pane {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.pane.render {
+  border-left: 1px solid var(--edge);
+}
+
+#editor {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.stage {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  overflow: auto;
+}
+
+.stage > svg,
+.stage > canvas {
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  box-shadow: 0 0 0 1px var(--edge), 0 2px 10px rgb(0 0 0 / 8%);
+}
+
+.placeholder {
+  margin: 0;
+  color: var(--fg-dim);
+  font-size: 13px;
+}
+
+.transport {
+  border-top: 1px solid var(--edge);
+  gap: 10px;
+}
+
+.transport button {
+  min-width: 62px;
+}
+
+#scrub {
+  flex: 1;
+  min-width: 0;
+  accent-color: var(--accent);
+}
+
+.clock {
+  color: var(--fg-dim);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.diagnostics {
+  border-top: 1px solid var(--edge);
+  background: var(--panel);
+  max-height: 26vh;
+  overflow: auto;
+  padding: 8px 16px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.diagnostics p {
+  margin: 0;
+  display: flex;
+  gap: 8px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.diagnostics .level {
+  flex: none;
+  min-width: 4.5em;
+  text-transform: lowercase;
+}
+
+.diagnostics .error .level {
+  color: var(--error);
+}
+
+.diagnostics .warn .level {
+  color: var(--warn);
+}
+
+.diagnostics .info .level {
+  color: var(--info);
+}
+
+footer.bar {
+  border-top: 1px solid var(--edge);
+  color: var(--fg-dim);
+  font-size: 12px;
+  min-height: 34px;
+}
+
+.status {
+  font-variant-numeric: tabular-nums;
+}
+
+/* CodeMirror leans on its own layout; only the outer sizing belongs here. */
+.cm-editor {
+  height: 100%;
+}
+
+.cm-editor.cm-focused {
+  outline: none;
+}
+
+@media (max-width: 880px) {
+  body {
+    height: auto;
+    min-height: 100%;
+  }
+
+  main {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* One column: the animation goes first. It is the thing worth seeing on arrival, and the
+     source is a scroll away rather than the other way round. */
+  .pane.render {
+    order: -1;
+    border-left: 0;
+    border-bottom: 1px solid var(--edge);
+  }
+
+  #editor {
+    height: 46vh;
+  }
+
+  .stage {
+    min-height: 36vh;
+  }
+}

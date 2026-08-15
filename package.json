@@ -42,7 +42,10 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json && node scripts/build-harness.mjs",
+    "build:site": "node scripts/build-site.mjs",
+    "site": "npm run build:site && node scripts/serve-site.mjs",
     "test": "npm run build && node --test test/*.test.mjs",
+    "test:site": "npm run build:site && node --test site/*.spec.mjs",
     "prepublishOnly": "npm run build",
     "demo": "npm run build && node bin/sketchling.js render examples/keyhole-laptop.ts --out preview.png",
     "lint": "eslint ."
@@ -56,10 +59,14 @@
     "three": "^0.185.1"
   },
   "devDependencies": {
+    "@codemirror/lang-javascript": "^6.2.5",
     "@eslint/js": "^10.0.1",
+    "@lezer/highlight": "^1.2.3",
     "@types/node": "^22.7.5",
     "@types/three": "^0.185.4",
+    "codemirror": "^6.0.2",
     "eslint": "^10.8.1",
+    "sucrase": "^3.35.1",
     "typescript": "^5.6.3",
     "typescript-eslint": "^8.66.0"
   }

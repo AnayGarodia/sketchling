@@ -1,5 +1,7 @@
 node_modules/
 dist/
+site/vendor/
+site/src/presets.generated.ts
 *.log
 preview.png
 .DS_Store

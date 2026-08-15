@@ -2,7 +2,8 @@ import js from "@eslint/js";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["dist/", "node_modules/", "docs/", "examples/", "bin/"] },
+  // site/vendor/ and site/src/presets.generated.ts are build output (scripts/build-site.mjs).
+  { ignores: ["dist/", "node_modules/", "docs/", "examples/", "bin/", "site/vendor/", "site/src/presets.generated.ts"] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
@@ -17,13 +18,27 @@ export default tseslint.config(
     },
   },
   {
-    files: ["test/**/*.mjs", "scripts/**/*.mjs"],
+    files: ["test/**/*.mjs", "scripts/**/*.mjs", "site/**/*.mjs"],
     languageOptions: {
       globals: {
         console: "readonly",
         process: "readonly",
         Buffer: "readonly",
         URL: "readonly",
+      },
+    },
+  },
+  {
+    // The playground test's page.evaluate callbacks are Node source that runs inside the
+    // browser — same situation cli.ts's own page.evaluate comment describes.
+    files: ["site/**/*.spec.mjs"],
+    languageOptions: {
+      globals: {
+        document: "readonly",
+        window: "readonly",
+        location: "readonly",
+        Image: "readonly",
+        Event: "readonly",
       },
     },
   }
