@@ -3,3 +3,4 @@ dist/
 *.log
 preview.png
 .DS_Store
+marketing/.build/

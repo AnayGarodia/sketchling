@@ -17,13 +17,18 @@ export default tseslint.config(
     },
   },
   {
-    files: ["test/**/*.mjs", "scripts/**/*.mjs"],
+    files: ["test/**/*.mjs", "scripts/**/*.mjs", "marketing/**/*.mjs"],
     languageOptions: {
       globals: {
         console: "readonly",
         process: "readonly",
         Buffer: "readonly",
         URL: "readonly",
+        // marketing/compose.mjs stringifies one function to inject into a Playwright page —
+        // its body runs in the browser, not in Node, same deliberate split as src/cli.ts's
+        // page.evaluate callbacks.
+        document: "readonly",
+        window: "readonly",
       },
     },
   }
