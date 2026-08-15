@@ -42,6 +42,20 @@ vocabulary in a browser tab: write a scene, watch it draw itself, scrub the time
 render as a link. It is the same renderer the CLI drives, not a cut down demo — source and notes
 in [`site/`](site/).
 
+## The loop, end to end
+
+[`marketing/magic-moment.mp4`](marketing/magic-moment.mp4) is thirty seconds of the whole idea:
+a prompt asking for an illustration, the TypeScript an agent writes for it, and the animation
+that code renders. The code in the clip is the code that produced the animation, and
+[`marketing/build.sh`](marketing/build.sh) rebuilds the whole thing from source.
+
+## Gallery
+
+[`gallery/`](gallery/) is twelve short loops — a record player, a pendulum clock, wind moving
+through wheat, a crab sidestepping — picked from forty eight scenes by rendering all of them and
+keeping the ones that hold up. Every clip has its scene file beside it in
+[`gallery/scenes/`](gallery/scenes/), and `gallery/build.sh` regenerates the lot.
+
 ## Install
 
 ```
