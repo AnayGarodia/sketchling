@@ -5,3 +5,4 @@ site/src/presets.generated.ts
 *.log
 preview.png
 .DS_Store
+marketing/.build/
