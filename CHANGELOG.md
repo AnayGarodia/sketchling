@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased
+
+**Fixes**
+
+- **A node with no `pivotAt` now actually rotates and scales about its own centre.** It was
+  rotating about the SVG origin — the canvas's top-left corner. `applyInitialTransform` asked
+  GSAP for `transformOrigin: "50% 50%"`, which GSAP resolves immediately against `getBBox()`,
+  and at that point in `buildNode` the node's `<g>` is still empty and unattached (children,
+  the rough.js art group, and drawOn's pen tip are all appended afterwards) — so the origin
+  resolved to 0,0. Measured on a 60px square drawn at (140, 360): `rotateTo(45)` put it at
+  roughly (-155, 353), fully off-canvas. The origin is now computed from the node's own
+  authored geometry (`nodeBBox`), which is the same bbox centre `moveTo`/`moveAlong` anchor to,
+  so a node's rotation centre and its placement reference are the same point by construction.
+  Two things hid this for a long time: anything that needs a joint pivots explicitly, and a
+  full 360-degree turn returns to identity regardless of its origin, so an unpivoted `spin`
+  only misbehaves mid-tween. `sketch.walk`'s "un-pivoted arms visibly detach" note was this
+  bug, not a limitation of arm rigging.
+
 ## 0.5.0
 
 Driven by real feedback: five independent sessions (three on Claude Fable, two on GPT-5.6 Sol)

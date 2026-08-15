@@ -3,7 +3,7 @@ import gsap from "gsap";
 import { MorphSVGPlugin } from "gsap/MorphSVGPlugin";
 import { MotionPathPlugin } from "gsap/MotionPathPlugin";
 import type { Renderable, SerializedFilm, SerializedNode, SerializedScene } from "../core/types.js";
-import { pathFromPoints, anchorPoint } from "../core/geometry.js";
+import { pathFromPoints, anchorPoint, nodeBBox } from "../core/geometry.js";
 import { mountLit3D } from "./renderer3d.js";
 import { roughOptionsFor, strokeWidthOf, effectiveFillStyle } from "./style.js";
 import {
@@ -492,7 +492,33 @@ function applyInitialTransform(g: SVGGElement, node: SerializedNode): void {
   // a walker rig that combined `.initial({x,y})` with `.pivotAt()` on the same group: without
   // this, a small rotation flung the whole shape off-canvas.
   if (t.pivot) props.svgOrigin = `${t.pivot[0] - t.x} ${t.pivot[1] - t.y}`;
-  else props.transformOrigin = "50% 50%";
+  else {
+    // No pivot means "turn and scale about your own centre", which is what every doc comment
+    // in this library promises — but `transformOrigin: "50% 50%"` CANNOT deliver it here.
+    // GSAP resolves that percentage into a fixed point immediately, against getBBox() of an
+    // element that at this point in buildNode is still empty and not yet in the document:
+    // children, the rough.js art group, and (later) drawOn's own pen-tip circle are all
+    // appended after this call. An empty bbox resolves the origin to 0,0 — the SVG origin —
+    // so every unpivoted rotateTo/rotateBy/scaleTo/squashTo silently orbited or scaled about
+    // the canvas's top-left corner instead of the shape. Measured on a 60px square drawn at
+    // (140, 360): rotateTo(45) landed it at roughly (-155, 353), i.e. fully off-canvas; a
+    // wheel group given a full-turn spin() left frame entirely. It went unnoticed for as long
+    // as it did because the two cases that hide it are the common ones — anything that needs
+    // a joint pivots explicitly, and a 360-degree turn returns to identity no matter where
+    // its origin is, so it only misbehaves mid-tween.
+    //
+    // The authored geometry answers the same question with no DOM and no build-order
+    // dependency, and gives the same bbox centre moveTo/moveAlong already anchor to (see
+    // scene-query.ts's computeNodeBBox), so a node's rotation centre and its placement
+    // reference are now the same point by construction.
+    const bbox = nodeBBox(node);
+    if (bbox) props.svgOrigin = `${(bbox.minX + bbox.maxX) / 2} ${(bbox.minY + bbox.maxY) / 2}`;
+    // Nodes with no authored 2D geometry of their own (mesh3d, limb, connector, particles)
+    // keep the percentage fallback: their visual extent isn't knowable from `points` at all,
+    // and each is animated through its own dedicated op (spin3d, ikTo) rather than by a
+    // rotateTo about a centre.
+    else props.transformOrigin = "50% 50%";
+  }
   gsap.set(g, props);
 }
 
