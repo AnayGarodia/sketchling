@@ -6,3 +6,5 @@ site/src/presets.generated.ts
 preview.png
 .DS_Store
 marketing/.build/
+gallery/work/
+.gstack/
