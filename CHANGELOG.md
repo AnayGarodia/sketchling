@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## 0.6.0
+
+The release that gives sketchling somewhere to send people: a playground that
+runs the whole vocabulary in a browser tab with nothing to install, twelve
+looping clips picked out of forty-eight rendered scenes, and a thirty-second
+clip of the loop the library exists for — a prompt, the code an agent writes
+for it, and the animation that code renders.
 
 **Playground (`site/`)**
 
