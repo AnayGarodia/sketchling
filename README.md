@@ -2,6 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![npm version](https://img.shields.io/npm/v/sketchling.svg)](https://www.npmjs.com/package/sketchling)
+[![CI](https://github.com/AnayGarodia/sketchling/actions/workflows/ci.yml/badge.svg)](https://github.com/AnayGarodia/sketchling/actions/workflows/ci.yml)
 
 A hand drawn illustration and animation language for LLMs. Manim gave language models a way to express math visually in code. Sketchling does the same for expressive, hand drawn illustration and motion — not a diagramming DSL, not a general 3D engine, a vocabulary for drawing and moving things by hand.
 
@@ -10,6 +11,13 @@ A hand drawn illustration and animation language for LLMs. Manim gave language m
 This is the closing shot of *The Lantern Maker*, a nine scene, three minute short film. An artisan crafts a paper lantern by lamplight, then carries it through a darkening town to release it from a bridge at night. Watch the full thing at [`docs/story-lantern-maker.mp4`](docs/story-lantern-maker.mp4).
 
 Nobody hand animated this. [Devin](https://devin.ai) built it cold, working from nothing but this repository's own docs, the same way every example in [`examples/`](examples/) was built: an LLM writing TypeScript against a vocabulary, not a human hand authoring vector art. That is the actual point of sketchling. If a coding agent can read a README and come out the other side with a real hand drawn film, the vocabulary is doing its job.
+
+## Playground
+
+[**anaygarodia.github.io/sketchling**](https://anaygarodia.github.io/sketchling/) runs the whole
+vocabulary in a browser tab, right now, no install: write a scene, watch it draw itself, scrub the
+timeline, share a render as a link. It is the same renderer the CLI drives, not a cut down demo —
+source and notes in [`site/`](site/).
 
 A few more scenes from the same batch, also built cold, also unedited:
 
@@ -34,13 +42,6 @@ Everything above shares one register — hand-drawn ink, restrained and muted �
 <td>Also real: a toon-shaded 3D toy robot (<a href="examples/showcase/nursery-blocks.ts">nursery-blocks.ts</a>, <code>look: "toon3d"</code>) and a film-grain jazz club with a synthesized score (<a href="examples/story/late-set.ts">late-set.ts</a>, <code>texture: "grain"</code>).</td>
 </tr>
 </table>
-
-## Playground
-
-[**anaygarodia.github.io/sketchling**](https://anaygarodia.github.io/sketchling/) runs the whole
-vocabulary in a browser tab: write a scene, watch it draw itself, scrub the timeline, share a
-render as a link. It is the same renderer the CLI drives, not a cut down demo — source and notes
-in [`site/`](site/).
 
 ## The loop, end to end
 
